@@ -1,0 +1,10 @@
+[package]
+name = "datafuzzer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+datafusion = { path = "../datafusion/datafusion/core" }
+datafusion-test-utils = { package = "test-utils", path = "../datafusion/test-utils" }
+tokio = { version = "1.36.0", features = ["full"] }
+rand = "0.8"
