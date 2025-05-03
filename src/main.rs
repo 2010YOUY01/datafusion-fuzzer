@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use datafusion::{arrow::util::pretty::pretty_format_batches, prelude::*};
 use datafuzzer::{
+    datasource_generator::{dataset_generator::DatasetGenerator, schema::SchemaGenerator},
     fuzz_context::GlobalContext,
     rng::rng_from_seed,
-    table_generator::{dataset_generator::DatasetGenerator, schema::SchemaGenerator},
 };
 
 #[tokio::main]
@@ -17,7 +17,14 @@ async fn main() {
     let schema_ref = Arc::new(schema);
 
     let mut dataset_generator = DatasetGenerator::new(4, Arc::clone(&ctx));
-    let dataset = dataset_generator.generate_dataset(schema_ref).unwrap();
+    let _ = dataset_generator.generate_dataset(schema_ref).unwrap();
 
-    println!("{}", pretty_format_batches(&[dataset]).unwrap());
+    // Register t1 into context
+    let table = dataset_generator.register_table().unwrap();
+
+    let sql = format!("SELECT * FROM {}", table.name);
+    let df_ctx = ctx.runtime_context.df_ctx.clone();
+    let df = df_ctx.sql(&sql).await.unwrap();
+    let result = df.collect().await.unwrap();
+    println!("{}", pretty_format_batches(&result).unwrap());
 }

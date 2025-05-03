@@ -1,0 +1,29 @@
+# Linux perf sample data
+perf.data
+perf.data.old
+
+
+.vscode
+.idea/
+.pytest_cache/
+pkgs
+docker_cache
+.gdb_history
+*.orig
+.*.swp
+.*.swo
+
+venv/*
+
+# macOS
+.DS_Store
+
+# docker volumes used for caching
+.docker
+
+# Rust
+target
+
+rusty-tags.vi
+.history
+.flatbuffers/

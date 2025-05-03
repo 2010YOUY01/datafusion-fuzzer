@@ -1,3 +1,12 @@
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicU32, Ordering},
+};
+
+use datafusion::{common::HashMap, prelude::SessionContext};
+
+use crate::common::LogicalTable;
+
 pub struct GlobalContext {
     pub runner_config: RunnerConfig,
     pub runtime_context: RuntimeContext,
@@ -14,7 +23,7 @@ impl GlobalContext {
     pub fn default() -> Self {
         Self {
             runner_config: RunnerConfig::default(),
-            runtime_context: RuntimeContext::new(),
+            runtime_context: RuntimeContext::default(),
         }
     }
 }
@@ -41,10 +50,33 @@ impl RunnerConfig {
     }
 }
 
-pub struct RuntimeContext {}
+pub struct RuntimeContext {
+    pub df_ctx: Arc<SessionContext>,
+    pub registered_tables: Arc<RwLock<HashMap<String, Arc<LogicalTable>>>>,
+    current_table_idx: AtomicU32,
+}
 
 impl RuntimeContext {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(df_ctx: Arc<SessionContext>) -> Self {
+        Self {
+            df_ctx,
+            registered_tables: Arc::new(RwLock::new(HashMap::new())),
+            current_table_idx: AtomicU32::new(0),
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            df_ctx: Arc::new(SessionContext::new()),
+            registered_tables: Arc::new(RwLock::new(HashMap::new())),
+            current_table_idx: AtomicU32::new(0),
+        }
+    }
+
+    pub fn next_table_name(&self) -> String {
+        format!(
+            "t{}",
+            self.current_table_idx.fetch_add(1, Ordering::Relaxed)
+        )
     }
 }
