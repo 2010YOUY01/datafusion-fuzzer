@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::ArrayRef;
 use datafusion::arrow::datatypes::{DataType, Int64Type, SchemaRef};
-use datafusion::arrow::{array::RecordBatch, datatypes::Schema};
+use datafusion::arrow::array::RecordBatch;
 use datafusion::catalog::MemTable;
 use datafusion::common::{internal_datafusion_err, internal_err};
 use datafusion::error::Result;

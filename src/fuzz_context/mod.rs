@@ -32,20 +32,35 @@ pub struct RunnerConfig {
     /// Random table generation policy
     pub max_column_count: u64,
     pub max_row_count: u64,
+
+    pub max_expr_level: u32,
 }
 
 impl RunnerConfig {
-    pub fn new(max_column_count: u64, max_row_count: u64) -> Self {
-        Self {
-            max_column_count,
-            max_row_count,
-        }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_max_column_count(mut self, max_column_count: u64) -> Self {
+        self.max_column_count = max_column_count;
+        self
+    }
+
+    pub fn with_max_row_count(mut self, max_row_count: u64) -> Self {
+        self.max_row_count = max_row_count;
+        self
+    }
+
+    pub fn with_max_expr_level(mut self, max_expr_level: u32) -> Self {
+        self.max_expr_level = max_expr_level;
+        self
     }
 
     pub fn default() -> Self {
         Self {
             max_column_count: 5,
             max_row_count: 100,
+            max_expr_level: 3,
         }
     }
 }

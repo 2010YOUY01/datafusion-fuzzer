@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::{DataType, Field, Schema},
-    prelude::*,
-};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use rand::{Rng, rngs::StdRng};
 
 use crate::{fuzz_context::GlobalContext, rng::rng_from_seed};

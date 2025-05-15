@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use datafusion::{arrow::util::pretty::pretty_format_batches, prelude::*};
+use datafusion::arrow::{datatypes::DataType, util::pretty::pretty_format_batches};
 use datafuzzer::{
     datasource_generator::{dataset_generator::DatasetGenerator, schema::SchemaGenerator},
     fuzz_context::GlobalContext,
+    query_generator::ExprGenerator,
     rng::rng_from_seed,
 };
 
 #[tokio::main]
 async fn main() {
-    let mut rnd = rng_from_seed(2);
+    let rnd = rng_from_seed(2);
     let ctx = Arc::new(GlobalContext::default());
 
     let mut schema_generator = SchemaGenerator::new(3, Arc::clone(&ctx));
@@ -27,4 +28,9 @@ async fn main() {
     let df = df_ctx.sql(&sql).await.unwrap();
     let result = df.collect().await.unwrap();
     println!("{}", pretty_format_batches(&result).unwrap());
+
+    // ==== Testing Expr Generator ====
+    let mut expr_generator = ExprGenerator::new(4, Arc::clone(&ctx));
+    let expr = expr_generator.generate_random_expr(DataType::Int64, 0);
+    println!("{}", expr.human_display());
 }

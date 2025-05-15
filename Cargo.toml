@@ -1,3 +1,5 @@
+cargo-features = ["edition2024"]
+
 [package]
 name = "datafuzzer"
 version = "0.1.0"
@@ -7,4 +9,9 @@ edition = "2024"
 datafusion = { path = "../datafusion/datafusion/core" }
 datafusion-test-utils = { package = "test-utils", path = "../datafusion/test-utils" }
 tokio = { version = "1.36.0", features = ["full"] }
+strum = { version = "0.27", features = ["derive"] }
 rand = "0.8"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
