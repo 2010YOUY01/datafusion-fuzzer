@@ -7,7 +7,7 @@ use datafusion::{
 };
 use datafuzzer::{
     datasource_generator::dataset_generator::DatasetGenerator, fuzz_context::GlobalContext,
-    query_generator::ExprGenerator, rng::rng_from_seed,
+    query_generator::expr_gen::ExprGenerator,
 };
 
 #[tokio::main]
