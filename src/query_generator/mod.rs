@@ -4,9 +4,11 @@ mod scalar_literal_gen;
 
 use datafusion::{
     arrow::datatypes::DataType,
+    common::Column,
     error::Result,
     logical_expr::{BinaryExpr, Operator},
     prelude::Expr,
+    sql::TableReference,
 };
 use expr_def::{BaseExpr, ExprWrapper, all_available_exprs};
 use scalar_literal_gen::generate_scalar_literal;
@@ -93,10 +95,32 @@ impl ExprGenerator {
 
     // Generate either a constant value or a column reference
     fn generate_leaf_expr(&mut self, target_type: DataType) -> Expr {
-        // TODO: generate a column ref of random type
-        let scalar_value = generate_scalar_literal(&mut self.rng, target_type, true);
+        // For certain chance: try to generate a column reference if available
+        let columns = self.get_all_columns_of_type(target_type.clone());
+        if !columns.is_empty() && self.rng.gen_bool(0.5) {
+            let column = columns[self.rng.gen_range(0..columns.len())].clone();
+            return Expr::Column(column);
+        }
 
+        // Otherwise, generate a constant literal
+        let scalar_value = generate_scalar_literal(&mut self.rng, target_type, true);
         Expr::Literal(scalar_value)
+    }
+
+    fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {
+        let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
+
+        let mut columns = Vec::new();
+        for (table_name, table) in tables_lock.iter() {
+            let table_ref = TableReference::bare(table_name.clone());
+            for field in table.schema.fields() {
+                if field.data_type() == &target_type {
+                    columns.push(Column::new(Some(table_ref.clone()), field.name()));
+                }
+            }
+        }
+
+        columns
     }
 
     /// If the number of childs is not correct, it will try to fix automatically.

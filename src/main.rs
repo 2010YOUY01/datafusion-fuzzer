@@ -1,27 +1,22 @@
 use std::sync::Arc;
 
-use datafusion::arrow::{datatypes::DataType, util::pretty::pretty_format_batches};
+use datafusion::{
+    arrow::{datatypes::DataType, util::pretty::pretty_format_batches},
+    error::DataFusionError,
+    sql::unparser::expr_to_sql,
+};
 use datafuzzer::{
-    datasource_generator::{dataset_generator::DatasetGenerator, schema::SchemaGenerator},
-    fuzz_context::GlobalContext,
-    query_generator::ExprGenerator,
-    rng::rng_from_seed,
+    datasource_generator::dataset_generator::DatasetGenerator, fuzz_context::GlobalContext,
+    query_generator::ExprGenerator, rng::rng_from_seed,
 };
 
 #[tokio::main]
-async fn main() {
-    let rnd = rng_from_seed(2);
+async fn main() -> Result<(), DataFusionError> {
     let ctx = Arc::new(GlobalContext::default());
 
-    let mut schema_generator = SchemaGenerator::new(3, Arc::clone(&ctx));
-    let schema = schema_generator.generate_schema();
-    let schema_ref = Arc::new(schema);
+    let mut dataset_generator = DatasetGenerator::new(6, Arc::clone(&ctx));
 
-    let mut dataset_generator = DatasetGenerator::new(4, Arc::clone(&ctx));
-    let _ = dataset_generator.generate_dataset(schema_ref).unwrap();
-
-    // Register t1 into context
-    let table = dataset_generator.register_table().unwrap();
+    let table = dataset_generator.generate_dataset()?;
 
     let sql = format!("SELECT * FROM {}", table.name);
     let df_ctx = ctx.runtime_context.df_ctx.clone();
@@ -30,7 +25,10 @@ async fn main() {
     println!("{}", pretty_format_batches(&result).unwrap());
 
     // ==== Testing Expr Generator ====
-    let mut expr_generator = ExprGenerator::new(4, Arc::clone(&ctx));
+    let mut expr_generator = ExprGenerator::new(9, Arc::clone(&ctx));
     let expr = expr_generator.generate_random_expr(DataType::Int64, 0);
-    println!("{}", expr.human_display());
+    let sql_expr = expr_to_sql(&expr)?;
+    println!("{}", sql_expr);
+
+    Ok(())
 }
