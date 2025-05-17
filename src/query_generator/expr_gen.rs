@@ -9,7 +9,7 @@ use datafusion::{
 };
 use rand::{Rng, rngs::StdRng};
 
-use crate::{fuzz_context::GlobalContext, rng::rng_from_seed};
+use crate::{common::LogicalTable, fuzz_context::GlobalContext, rng::rng_from_seed};
 
 use super::{
     expr_def::{BaseExpr, ExprWrapper, all_available_exprs},
@@ -20,6 +20,8 @@ pub struct ExprGenerator {
     rng: StdRng,
     ctx: Arc<GlobalContext>,
     max_level: u32,
+
+    src_tables: Arc<Vec<LogicalTable>>,
 }
 
 impl ExprGenerator {
@@ -29,7 +31,13 @@ impl ExprGenerator {
             rng: rng_from_seed(seed),
             ctx: context,
             max_level,
+            src_tables: Arc::new(Vec::new()),
         }
+    }
+
+    pub fn with_src_tables(mut self, src_tables: Arc<Vec<LogicalTable>>) -> Self {
+        self.src_tables = src_tables;
+        self
     }
 
     fn pick_random_expr_with_return_type(&mut self, target_type: DataType) -> Arc<ExprWrapper> {
@@ -79,11 +87,9 @@ impl ExprGenerator {
     }
 
     fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {
-        let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
-
         let mut columns = Vec::new();
-        for (table_name, table) in tables_lock.iter() {
-            let table_ref = TableReference::bare(table_name.clone());
+        for table in self.src_tables.as_ref() {
+            let table_ref = TableReference::bare(table.name.clone());
             for field in table.schema.fields() {
                 if field.data_type() == &target_type {
                     columns.push(Column::new(Some(table_ref.clone()), field.name()));

@@ -1,4 +1,6 @@
-use datafusion::arrow::datatypes::SchemaRef;
+use core::fmt;
+
+use datafusion::{arrow::datatypes::SchemaRef, error::DataFusionError};
 
 #[derive(Debug, Clone)]
 pub struct LogicalTable {
@@ -22,4 +24,39 @@ impl LogicalTable {
             table_type,
         }
     }
+}
+
+pub type Result<T = ()> = std::result::Result<T, FuzzerError>;
+
+// ====
+// Fuzzer Errors
+// ====
+#[derive(Debug)]
+pub enum FuzzerError {
+    FuzzerError(String),
+    DataFusionError(DataFusionError),
+    // Add other error types as needed
+}
+
+impl std::error::Error for FuzzerError {}
+
+impl fmt::Display for FuzzerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FuzzerError::FuzzerError(msg) => write!(f, "{}", msg),
+            FuzzerError::DataFusionError(e) => write!(f, "DataFusion error: {}", e),
+        }
+    }
+}
+
+// From conversion to allow ? operator with DataFusionError
+impl From<DataFusionError> for FuzzerError {
+    fn from(error: DataFusionError) -> Self {
+        FuzzerError::DataFusionError(error)
+    }
+}
+
+// Helper functions to create FuzzerError easily
+pub fn fuzzer_err(msg: &str) -> FuzzerError {
+    FuzzerError::FuzzerError(msg.to_string())
 }

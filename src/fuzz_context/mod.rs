@@ -1,3 +1,5 @@
+pub mod ctx_observability;
+
 use std::sync::{
     Arc, RwLock,
     atomic::{AtomicU32, Ordering},

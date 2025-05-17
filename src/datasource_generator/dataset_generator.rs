@@ -62,7 +62,12 @@ impl DatasetGenerator {
         self.buffered_datasets = Some(batch.clone());
 
         // ==== Register table ====
-        self.register_table(&table_name, &batch)
+        let registered_table = self.register_table(&table_name, &batch)?;
+
+        // ==== Celanup ====
+        self.buffered_datasets = None;
+
+        Ok(registered_table)
     }
 
     /// Register the buffered dataset both datafusion context and fuzzer context
