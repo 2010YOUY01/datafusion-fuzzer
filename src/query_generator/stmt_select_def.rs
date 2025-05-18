@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::DataType, prelude::Expr,
-    sql::unparser::expr_to_sql,
-};
+use datafusion::{arrow::datatypes::DataType, prelude::Expr, sql::unparser::expr_to_sql};
 use rand::{Rng, rngs::StdRng, seq::SliceRandom};
 
 use crate::{

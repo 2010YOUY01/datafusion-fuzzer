@@ -1,0 +1,4 @@
+[2m2025-05-18T08:40:07.221807Z[0m [32m INFO[0m ThreadId(01) [2mdatafuzzer[0m[2m:[0m[2m66[0m[2m:[0m Logging initialized to file: "logs/fuzz_test.log"
+[2m2025-05-18T08:44:36.585803Z[0m [32m INFO[0m ThreadId(01) [2mdatafuzzer[0m[2m:[0m[2m66[0m[2m:[0m Logging initialized to file: "logs/fuzz_test.log"
+[2m2025-05-18T08:47:35.143413Z[0m Logging initialized to file: "logs/fuzz_test.log"
+[2m2025-05-18T08:53:26.953464Z[0m Logging initialized to file: "logs/fuzz_test.log"

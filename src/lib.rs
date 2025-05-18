@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod common;
 pub mod datasource_generator;
 pub mod fuzz_context;

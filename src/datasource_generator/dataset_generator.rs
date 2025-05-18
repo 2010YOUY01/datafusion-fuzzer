@@ -40,9 +40,15 @@ impl DatasetGenerator {
 
         let num_columns = self.rng.gen_range(1..=cfg_max_col_count);
         let mut columns = Vec::new();
+        // Hack: using unparser to display the expr will lowercase the column name
+        // here we all use lowercase column name to avoid the issue.
         for i in 0..num_columns {
             let column_type = DataType::Int64;
-            let column_name = format!("col_{table_name}_{}_{column_type}", i + 1);
+            let column_name = format!(
+                "col_{table_name}_{}_{}",
+                i + 1,
+                format!("{:?}", column_type).to_lowercase()
+            );
             columns.push(Field::new(column_name, column_type, false));
         }
         let schema = Schema::new(columns);

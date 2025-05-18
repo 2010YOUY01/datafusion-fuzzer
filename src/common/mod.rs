@@ -1,4 +1,5 @@
 use core::fmt;
+use std::io;
 
 use datafusion::{arrow::datatypes::SchemaRef, error::DataFusionError};
 
@@ -35,6 +36,7 @@ pub type Result<T = ()> = std::result::Result<T, FuzzerError>;
 pub enum FuzzerError {
     FuzzerError(String),
     DataFusionError(DataFusionError),
+    IoError(io::Error),
     // Add other error types as needed
 }
 
@@ -45,6 +47,7 @@ impl fmt::Display for FuzzerError {
         match self {
             FuzzerError::FuzzerError(msg) => write!(f, "{}", msg),
             FuzzerError::DataFusionError(e) => write!(f, "DataFusion error: {}", e),
+            FuzzerError::IoError(e) => write!(f, "IO error: {}", e),
         }
     }
 }
@@ -53,6 +56,13 @@ impl fmt::Display for FuzzerError {
 impl From<DataFusionError> for FuzzerError {
     fn from(error: DataFusionError) -> Self {
         FuzzerError::DataFusionError(error)
+    }
+}
+
+// From conversion to allow ? operator with io::Error
+impl From<io::Error> for FuzzerError {
+    fn from(error: io::Error) -> Self {
+        FuzzerError::IoError(error)
     }
 }
 

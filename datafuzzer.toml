@@ -1,0 +1,21 @@
+# DataFuzzer Configuration
+
+# Random seed for reproducibility
+seed = 42
+
+# Number of fuzzing rounds to run
+rounds = 3
+
+# Number of queries to generate per round
+queries_per_round = 10
+
+# Query timeout in seconds
+timeout_seconds = 30
+
+# Path to log file (comment out to use stdout only)
+# log_path = "logs/datafuzzer.log"
+
+# Table generation parameters
+max_column_count = 5
+max_row_count = 100
+max_expr_level = 3
