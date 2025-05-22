@@ -38,7 +38,7 @@ impl DatasetGenerator {
         let table_name = self.ctx.runtime_context.next_table_name(); // t1, t2, ...
         let cfg_max_col_count = self.ctx.runner_config.max_column_count;
 
-        let num_columns = self.rng.gen_range(1..=cfg_max_col_count);
+        let num_columns = self.rng.random_range(1..=cfg_max_col_count);
         let mut columns = Vec::new();
         // Hack: using unparser to display the expr will lowercase the column name
         // here we all use lowercase column name to avoid the issue.
@@ -55,7 +55,7 @@ impl DatasetGenerator {
 
         // ==== Generate dataset ====
         let cfg_max_row_count = self.ctx.runner_config.max_row_count;
-        let actual_row_count = self.rng.gen_range(0..cfg_max_row_count);
+        let actual_row_count = self.rng.random_range(0..cfg_max_row_count);
 
         let cols: Result<Vec<_>> = schema
             .fields()

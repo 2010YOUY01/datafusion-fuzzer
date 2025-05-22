@@ -49,13 +49,13 @@ impl ExprGenerator {
             .collect();
 
         let expr =
-            expr_with_return_type[self.rng.gen_range(0..expr_with_return_type.len())].clone();
+            expr_with_return_type[self.rng.random_range(0..expr_with_return_type.len())].clone();
 
         expr
     }
 
     pub fn generate_random_expr(&mut self, target_type: DataType, cur_level: u32) -> Expr {
-        let half_chance = self.rng.gen_bool(0.5);
+        let half_chance = self.rng.random_bool(0.5);
         if cur_level == self.max_level || half_chance {
             // Generate a leaf expression
             return self.generate_leaf_expr(target_type);
@@ -76,8 +76,8 @@ impl ExprGenerator {
     fn generate_leaf_expr(&mut self, target_type: DataType) -> Expr {
         // For certain chance: try to generate a column reference if available
         let columns = self.get_all_columns_of_type(target_type.clone());
-        if !columns.is_empty() && self.rng.gen_bool(0.5) {
-            let column = columns[self.rng.gen_range(0..columns.len())].clone();
+        if !columns.is_empty() && self.rng.random_bool(0.5) {
+            let column = columns[self.rng.random_range(0..columns.len())].clone();
             return Expr::Column(column);
         }
 

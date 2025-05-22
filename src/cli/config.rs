@@ -20,6 +20,7 @@ pub struct FuzzerRunnerConfig {
     pub log_path: Option<PathBuf>,
 
     // Parameters propagated to RunnerConfig
+    pub display_logs: bool,
     pub max_column_count: u64,
     pub max_row_count: u64,
     pub max_expr_level: u32,
@@ -33,6 +34,7 @@ impl Default for FuzzerRunnerConfig {
             queries_per_round: 10,
             timeout_seconds: 30,
             log_path: None,
+            display_logs: false,
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
@@ -50,6 +52,7 @@ impl FuzzerRunnerConfig {
             .with_max_column_count(self.max_column_count)
             .with_max_row_count(self.max_row_count)
             .with_max_expr_level(self.max_expr_level)
+            .with_display_logs(self.display_logs)
     }
 
     pub fn from_file(path: &Path) -> Result<Self> {
@@ -90,6 +93,9 @@ impl FuzzerRunnerConfig {
         if let Some(log_path) = &cli.log_path {
             config.log_path = Some(log_path.clone());
         }
+
+        // Set display_logs from CLI argument
+        config.display_logs = cli.display_logs;
 
         Ok(config)
     }

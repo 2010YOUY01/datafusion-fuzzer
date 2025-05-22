@@ -6,14 +6,15 @@ use tracing::{error, info, warn};
 use crate::common::Result;
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
+use crate::fuzz_runner::FuzzerRunner;
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::FuzzerRunnerConfig;
 
-pub async fn run_fuzzer(config: FuzzerRunnerConfig) -> Result<()> {
+pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -> Result<()> {
     info!("Starting fuzzer with seed: {}", config.seed);
 
-    // Create runner config from our CLI config
+    // Propagate the configs from FuzzerRunnerConfig to RunnerConfig
     let runner_config = config.to_runner_config();
 
     // Create the global context
@@ -64,14 +65,16 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig) -> Result<()> {
                             let start = Instant::now();
                             let query_future = ctx.runtime_context.df_ctx.sql(&sql);
 
-                            match timeout(timeout_duration, query_future).await {
+                            let success = match timeout(timeout_duration, query_future).await {
                                 Ok(result) => match result {
                                     Ok(_) => {
                                         let duration = start.elapsed();
                                         info!("Query executed successfully in {:?}", duration);
+                                        true
                                     }
                                     Err(e) => {
                                         warn!("Query execution error: {}", e);
+                                        false
                                     }
                                 },
                                 Err(_) => {
@@ -79,8 +82,12 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig) -> Result<()> {
                                         "Query execution timed out after {:?}",
                                         timeout_duration
                                     );
+                                    false
                                 }
-                            }
+                            };
+
+                            // Record the query execution in our stats
+                            fuzzer.record_query(&sql, success);
                         }
                         Err(e) => error!("Failed to convert statement to SQL: {}", e),
                     }
@@ -89,9 +96,8 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig) -> Result<()> {
             }
         }
 
-        info!("Completed round {}/{}", round + 1, config.rounds);
+        fuzzer.complete_round();
     }
 
-    info!("Fuzzing completed successfully");
     Ok(())
 }

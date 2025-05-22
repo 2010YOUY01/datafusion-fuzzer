@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use datafusion::{arrow::datatypes::DataType, prelude::Expr, sql::unparser::expr_to_sql};
-use rand::{Rng, rngs::StdRng, seq::SliceRandom};
+use rand::prelude::IndexedRandom;
+use rand::{Rng, rngs::StdRng};
 
 use crate::{
     common::{LogicalTable, Result, fuzzer_err},
@@ -85,21 +86,22 @@ impl SelectStatementBuilder {
     }
 
     pub fn build(&mut self) -> Result<SelectStatement> {
-        // 1. Pick src table
+        // 1. Pick src tables
         self.pick_src_tables()?;
 
         // 2. Generate select exprs
         let expr_gen = ExprGenerator::new(3, self.ctx.clone());
         let mut expr_gen = expr_gen.with_src_tables(Arc::new(self.src_tables.clone()));
 
-        // TODO(rnd): pick random type
-        // TODO(cfg): cfg for max number of select exprs
-        let cfg_max_select_exprs = 5; // up to 5 expr
-        let num_select_exprs = self.rng.gen_range(1..=cfg_max_select_exprs);
+        // Build SELECT clause: generate expression list
+        let cfg_max_select_exprs = self.ctx.runner_config.max_expr_level as usize;
+        let num_select_exprs = self.rng.random_range(1..=cfg_max_select_exprs);
+
         let select_exprs = (0..num_select_exprs)
             .map(|_| expr_gen.generate_random_expr(DataType::Int64, 0))
             .collect::<Vec<_>>();
 
+        // Build FROM clause
         Ok(SelectStatement {
             select_exprs,
             from_clause: FromClause {
@@ -114,11 +116,10 @@ impl SelectStatementBuilder {
 
     // ==== Helper functions for `build()` ====
     pub fn pick_src_tables(&mut self) -> Result<()> {
-        // TODO(cfg): Add config for number of src tables
         // TODO: Support duplicate table like `... from t1, t1 as t1_2` in the future
 
         // ==== Pick some unique tables and store inside builder ====
-        let num_src_tables = self.rng.gen_range(1..=3);
+        let num_src_tables = self.rng.random_range(1..=3);
 
         // Get all available tables
         let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();

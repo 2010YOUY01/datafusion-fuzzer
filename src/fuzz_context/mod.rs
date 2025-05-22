@@ -31,6 +31,7 @@ impl GlobalContext {
 }
 
 pub struct RunnerConfig {
+    pub display_logs: bool,
     /// Random table generation policy
     pub max_column_count: u64,
     pub max_row_count: u64,
@@ -58,8 +59,14 @@ impl RunnerConfig {
         self
     }
 
+    pub fn with_display_logs(mut self, display_logs: bool) -> Self {
+        self.display_logs = display_logs;
+        self
+    }
+
     pub fn default() -> Self {
         Self {
+            display_logs: false,
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,

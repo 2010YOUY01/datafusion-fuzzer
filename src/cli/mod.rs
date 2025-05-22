@@ -32,4 +32,8 @@ pub struct Cli {
     /// Path to log file
     #[arg(short, long)]
     pub log_path: Option<PathBuf>,
+
+    /// Display logs
+    #[arg(short, long)]
+    pub display_logs: bool,
 }

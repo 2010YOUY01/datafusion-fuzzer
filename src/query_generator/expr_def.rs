@@ -39,8 +39,8 @@ impl ExprWrapper {
     // TODO: inject more randomness here (by generating a invalid signature)
     pub fn pick_child_signature(&self, output_type: DataType, rng: &mut StdRng) -> Vec<DataType> {
         // Pick one signature in TypeGroup like (SAME_AS_OUTPUT, INT/Float64, INT)
-        let signature =
-            &self.inferred_child_signature[rng.gen_range(0..self.inferred_child_signature.len())];
+        let signature = &self.inferred_child_signature
+            [rng.random_range(0..self.inferred_child_signature.len())];
 
         // Pick one valid type from each TypeGroup in the signature
         let picked_types = signature
@@ -48,7 +48,7 @@ impl ExprWrapper {
             .map(|group| match group {
                 TypeGroup::SameAsOutput => output_type.clone(),
                 TypeGroup::Fixed(dt) => dt.clone(),
-                TypeGroup::OneOf(dts) => dts[rng.gen_range(0..dts.len())].clone(),
+                TypeGroup::OneOf(dts) => dts[rng.random_range(0..dts.len())].clone(),
             })
             .collect();
 
@@ -94,4 +94,26 @@ pub fn all_available_exprs() -> &'static [Arc<ExprWrapper>] {
     });
 
     &AVAILABLE_EXPRS
+}
+
+impl Clone for TypeGroup {
+    fn clone(&self) -> Self {
+        match self {
+            TypeGroup::SameAsOutput => TypeGroup::SameAsOutput,
+            TypeGroup::Fixed(dt) => TypeGroup::Fixed(dt.clone()),
+            TypeGroup::OneOf(dts) => TypeGroup::OneOf(dts.clone()),
+        }
+    }
+}
+
+impl TypeGroup {
+    pub fn pick_random_type(&self, rng: &mut StdRng) -> DataType {
+        match self {
+            TypeGroup::SameAsOutput => {
+                panic!("SameAsOutput type needs to be resolved with the output type")
+            }
+            TypeGroup::Fixed(dt) => dt.clone(),
+            TypeGroup::OneOf(dts) => dts[rng.random_range(0..dts.len())].clone(),
+        }
+    }
 }

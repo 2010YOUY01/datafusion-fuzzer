@@ -1,22 +1,24 @@
-cargo-features = ["edition2024"]
-
 [package]
 name = "datafuzzer"
 version = "0.1.0"
 edition = "2024"
+
+[features]
 
 [dependencies]
 datafusion = { path = "../datafusion/datafusion/core" }
 datafusion-test-utils = { package = "test-utils", path = "../datafusion/test-utils" }
 tokio = { version = "1.36.0", features = ["full"] }
 strum = { version = "0.27", features = ["derive"] }
-rand = "0.8"
+rand = "0.9"
 clap = { version = "4.5.3", features = ["derive"] }
 toml = "0.8.8"
 serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
+ratatui = "0.29.0"
+crossterm = "0.29.0"
 
 [profile.release]
 lto = "thin"

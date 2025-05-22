@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{arrow::util::pretty::pretty_format_batches, error::Result};
+use tracing::info;
 
 use super::GlobalContext;
 
@@ -12,20 +13,16 @@ pub async fn display_all_tables(ctx: Arc<GlobalContext>) -> Result<()> {
         let sql = format!("SELECT * FROM {} LIMIT 3", table_name);
         let df_ctx = ctx.runtime_context.df_ctx.clone();
 
-        println!("=== Table: {} ===", table_name);
-
         match df_ctx.sql(&sql).await {
             Ok(df) => match df.collect().await {
                 Ok(batches) => match pretty_format_batches(&batches) {
-                    Ok(formatted) => println!("{}", formatted),
-                    Err(e) => println!("Error formatting results: {}", e),
+                    Ok(formatted) => info!("\n=== Table: {} ===\n{}", table_name, formatted),
+                    Err(e) => info!("Error formatting results: {}", e),
                 },
-                Err(e) => println!("Error collecting results: {}", e),
+                Err(e) => info!("Error collecting results: {}", e),
             },
-            Err(e) => println!("Error executing query: {}", e),
+            Err(e) => info!("Error executing query: {}", e),
         }
-
-        println!();
     }
 
     Ok(())

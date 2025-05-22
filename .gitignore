@@ -27,3 +27,5 @@ target
 rusty-tags.vi
 .history
 .flatbuffers/
+
+*.log
