@@ -3,6 +3,8 @@ use std::io;
 
 use datafusion::{arrow::datatypes::SchemaRef, error::DataFusionError};
 
+pub mod rng;
+
 #[derive(Debug, Clone)]
 pub struct LogicalTable {
     pub name: String,

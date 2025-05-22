@@ -3,16 +3,15 @@ use std::sync::Arc;
 use datafusion::arrow::array::ArrayRef;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::datatypes::{DataType, Field, Int64Type};
+use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::catalog::MemTable;
 use datafusion::common::internal_err;
 use datafusion::error::Result;
-use datafusion_test_utils::array_gen::PrimitiveArrayGenerator;
 use rand::rngs::StdRng;
-use rand::{Rng, RngCore};
+use rand::Rng;
 
 use crate::common::{LogicalTable, LogicalTableType};
-use crate::{fuzz_context::GlobalContext, rng::rng_from_seed};
+use crate::{common::rng::rng_from_seed, fuzz_context::GlobalContext};
 
 pub struct DatasetGenerator {
     rng: StdRng,
@@ -108,14 +107,16 @@ impl DatasetGenerator {
     fn generate_array_of_type(&mut self, field_type: &DataType, len: u64) -> Result<ArrayRef> {
         match field_type {
             DataType::Int64 => {
-                let mut arr_gen = PrimitiveArrayGenerator {
-                    num_primitives: len as usize,
-                    num_distinct_primitives: len as usize,
-                    null_pct: 0.0,
-                    rng: rng_from_seed(self.rng.next_u64()),
-                };
+                // Create a manual array of random i64 values to avoid version mismatch issues
+                use datafusion::arrow::array::{ArrayBuilder, Int64Builder};
 
-                Ok(arr_gen.gen_data::<Int64Type>())
+                let mut builder = Int64Builder::new();
+                for _ in 0..len {
+                    let value = self.rng.gen_range(i64::MIN..i64::MAX);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
             }
             _ => return internal_err!("Unsupported data type"),
         }

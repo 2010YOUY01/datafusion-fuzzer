@@ -1,10 +1,12 @@
 mod config;
 mod runner;
+mod tui;
 
 use clap::Parser;
 pub use config::FuzzerRunnerConfig;
 pub use runner::run_fuzzer;
 use std::path::PathBuf;
+pub use tui::{TuiApp, init, restore};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,4 +38,8 @@ pub struct Cli {
     /// Display logs
     #[arg(short, long)]
     pub display_logs: bool,
+
+    /// Enable TUI display
+    #[arg(long)]
+    pub enable_tui: bool,
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use rand::rngs::StdRng;
 
-use crate::{fuzz_context::GlobalContext, rng::rng_from_seed};
+use crate::{common::rng::rng_from_seed, fuzz_context::GlobalContext};
 
 pub struct StatementGenerator {
     rng: StdRng,

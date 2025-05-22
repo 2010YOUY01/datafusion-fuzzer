@@ -9,7 +9,10 @@ use datafusion::{
 };
 use rand::{Rng, rngs::StdRng};
 
-use crate::{common::LogicalTable, fuzz_context::GlobalContext, rng::rng_from_seed};
+use crate::{
+    common::{LogicalTable, rng::rng_from_seed},
+    fuzz_context::GlobalContext,
+};
 
 use super::{
     expr_def::{BaseExpr, ExprWrapper, all_available_exprs},

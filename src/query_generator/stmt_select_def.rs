@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use datafusion::{arrow::datatypes::DataType, prelude::Expr, sql::unparser::expr_to_sql};
 use rand::prelude::IndexedRandom;
-use rand::{Rng, rngs::StdRng};
+use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
-    common::{LogicalTable, Result, fuzzer_err},
+    common::{LogicalTable, Result, fuzzer_err, rng::rng_from_seed},
     fuzz_context::GlobalContext,
-    rng::rng_from_seed,
 };
 
 use super::expr_gen::ExprGenerator;
@@ -90,7 +89,8 @@ impl SelectStatementBuilder {
         self.pick_src_tables()?;
 
         // 2. Generate select exprs
-        let expr_gen = ExprGenerator::new(3, self.ctx.clone());
+        let expr_seed = self.rng.next_u64();
+        let expr_gen = ExprGenerator::new(expr_seed, self.ctx.clone());
         let mut expr_gen = expr_gen.with_src_tables(Arc::new(self.src_tables.clone()));
 
         // Build SELECT clause: generate expression list

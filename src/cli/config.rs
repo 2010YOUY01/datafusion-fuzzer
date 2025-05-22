@@ -21,6 +21,7 @@ pub struct FuzzerRunnerConfig {
 
     // Parameters propagated to RunnerConfig
     pub display_logs: bool,
+    pub enable_tui: bool,
     pub max_column_count: u64,
     pub max_row_count: u64,
     pub max_expr_level: u32,
@@ -35,6 +36,7 @@ impl Default for FuzzerRunnerConfig {
             timeout_seconds: 30,
             log_path: None,
             display_logs: false,
+            enable_tui: true,
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
@@ -96,6 +98,9 @@ impl FuzzerRunnerConfig {
 
         // Set display_logs from CLI argument
         config.display_logs = cli.display_logs;
+
+        // Set enable_tui from CLI argument
+        config.enable_tui = cli.enable_tui;
 
         Ok(config)
     }
