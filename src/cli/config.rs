@@ -34,7 +34,7 @@ impl Default for FuzzerRunnerConfig {
             rounds: 3,
             queries_per_round: 10,
             timeout_seconds: 30,
-            log_path: None,
+            log_path: Some(PathBuf::from("logs")),
             display_logs: false,
             enable_tui: true,
             max_column_count: 5,

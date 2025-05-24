@@ -12,8 +12,14 @@ queries_per_round = 10
 # Query timeout in seconds
 timeout_seconds = 30
 
-# Path to log file (comment out to use stdout only)
-# log_path = "logs/datafuzzer.log"
+# Path to log directory
+log_path = "logs"
+
+# Display logs to stdout as well as log files
+display_logs = false
+
+# Enable TUI display
+enable_tui = true
 
 # Table generation parameters
 max_column_count = 5
