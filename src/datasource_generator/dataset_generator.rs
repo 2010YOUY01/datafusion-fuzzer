@@ -2,15 +2,14 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::ArrayRef;
 use datafusion::arrow::array::RecordBatch;
+use datafusion::arrow::datatypes::Field;
 use datafusion::arrow::datatypes::Schema;
-use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::catalog::MemTable;
-use datafusion::common::internal_err;
 use datafusion::error::Result;
-use rand::rngs::StdRng;
 use rand::Rng;
+use rand::rngs::StdRng;
 
-use crate::common::{LogicalTable, LogicalTableType};
+use crate::common::{FuzzerDataType, LogicalTable, LogicalTableType, get_available_data_types};
 use crate::{common::rng::rng_from_seed, fuzz_context::GlobalContext};
 
 pub struct DatasetGenerator {
@@ -29,7 +28,6 @@ impl DatasetGenerator {
         }
     }
 
-    // TODO: pick random column type
     pub fn generate_dataset(&mut self) -> Result<LogicalTable> {
         // ==== Generate schema ====
         // Generated schema for table 't1':
@@ -39,16 +37,23 @@ impl DatasetGenerator {
 
         let num_columns = self.rng.random_range(1..=cfg_max_col_count);
         let mut columns = Vec::new();
+        let mut column_fuzzer_types = Vec::new(); // Store fuzzer types for array generation
+        let available_types = get_available_data_types();
+
         // Hack: using unparser to display the expr will lowercase the column name
         // here we all use lowercase column name to avoid the issue.
         for i in 0..num_columns {
-            let column_type = DataType::Int64;
+            // Pick a random column type from available types
+            let fuzzer_column_type =
+                &available_types[self.rng.random_range(0..available_types.len())];
+            let datafusion_column_type = fuzzer_column_type.to_datafusion_type();
             let column_name = format!(
                 "col_{table_name}_{}_{}",
                 i + 1,
-                format!("{:?}", column_type).to_lowercase()
+                fuzzer_column_type.display_name()
             );
-            columns.push(Field::new(column_name, column_type, false));
+            columns.push(Field::new(column_name, datafusion_column_type, false));
+            column_fuzzer_types.push(fuzzer_column_type.clone());
         }
         let schema = Schema::new(columns);
 
@@ -56,10 +61,9 @@ impl DatasetGenerator {
         let cfg_max_row_count = self.ctx.runner_config.max_row_count;
         let actual_row_count = self.rng.random_range(0..cfg_max_row_count);
 
-        let cols: Result<Vec<_>> = schema
-            .fields()
+        let cols: Result<Vec<_>> = column_fuzzer_types
             .iter()
-            .map(|field| self.generate_array_of_type(field.data_type(), actual_row_count))
+            .map(|fuzzer_type| self.generate_array_of_type(fuzzer_type, actual_row_count))
             .collect();
 
         assert!(self.buffered_datasets.is_none());
@@ -69,7 +73,7 @@ impl DatasetGenerator {
         // ==== Register table ====
         let registered_table = self.register_table(&table_name, &batch)?;
 
-        // ==== Celanup ====
+        // ==== Cleanup ====
         self.buffered_datasets = None;
 
         Ok(registered_table)
@@ -104,21 +108,97 @@ impl DatasetGenerator {
         Ok(logical_table)
     }
 
-    fn generate_array_of_type(&mut self, field_type: &DataType, len: u64) -> Result<ArrayRef> {
-        match field_type {
-            DataType::Int64 => {
-                // Create a manual array of random i64 values to avoid version mismatch issues
-                use datafusion::arrow::array::{ArrayBuilder, Int64Builder};
+    // TODO: now numbers generated are all simple values (e.g. int32 - [-100, 100])
+    // edge cases and large numbers are not covered.
+    fn generate_array_of_type(
+        &mut self,
+        fuzzer_type: &FuzzerDataType,
+        len: u64,
+    ) -> Result<ArrayRef> {
+        match fuzzer_type {
+            FuzzerDataType::Int32 => {
+                use datafusion::arrow::array::Int32Builder;
 
-                let mut builder = Int64Builder::new();
+                let mut builder = Int32Builder::new();
                 for _ in 0..len {
-                    let value = self.rng.gen_range(i64::MIN..i64::MAX);
+                    // Use naive range -100 to 100 to avoid edge cases
+                    let value = self.rng.random_range(-100..=100);
                     builder.append_value(value);
                 }
 
                 Ok(Arc::new(builder.finish()))
             }
-            _ => return internal_err!("Unsupported data type"),
+            FuzzerDataType::Int64 => {
+                use datafusion::arrow::array::Int64Builder;
+
+                let mut builder = Int64Builder::new();
+                for _ in 0..len {
+                    // Use naive range -100 to 100 to avoid edge cases
+                    let value = self.rng.random_range(-100..=100);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::UInt32 => {
+                use datafusion::arrow::array::UInt32Builder;
+
+                let mut builder = UInt32Builder::new();
+                for _ in 0..len {
+                    // Use naive range 0 to 100 to avoid edge cases
+                    let value = self.rng.random_range(0..=100);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::UInt64 => {
+                use datafusion::arrow::array::UInt64Builder;
+
+                let mut builder = UInt64Builder::new();
+                for _ in 0..len {
+                    // Use naive range 0 to 100 to avoid edge cases
+                    let value = self.rng.random_range(0..=100);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::Float32 => {
+                use datafusion::arrow::array::Float32Builder;
+
+                let mut builder = Float32Builder::new();
+                for _ in 0..len {
+                    // Use naive range -100.0 to 100.0 to avoid edge cases
+                    let value = self.rng.random_range(-100.0..=100.0);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::Float64 => {
+                use datafusion::arrow::array::Float64Builder;
+
+                let mut builder = Float64Builder::new();
+                for _ in 0..len {
+                    // Use naive range -100.0 to 100.0 to avoid edge cases
+                    let value = self.rng.random_range(-100.0..=100.0);
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::Boolean => {
+                use datafusion::arrow::array::BooleanBuilder;
+
+                let mut builder = BooleanBuilder::new();
+                for _ in 0..len {
+                    let value = self.rng.random_bool(0.5); // 50% chance of true/false
+                    builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
         }
     }
 }

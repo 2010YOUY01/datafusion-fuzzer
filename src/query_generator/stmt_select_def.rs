@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use datafusion::{arrow::datatypes::DataType, prelude::Expr, sql::unparser::expr_to_sql};
+use datafusion::{prelude::Expr, sql::unparser::expr_to_sql};
 use rand::prelude::IndexedRandom;
 use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
-    common::{LogicalTable, Result, fuzzer_err, rng::rng_from_seed},
+    common::{LogicalTable, Result, fuzzer_err, get_available_data_types, rng::rng_from_seed},
     fuzz_context::GlobalContext,
 };
 
@@ -97,8 +97,14 @@ impl SelectStatementBuilder {
         let cfg_max_select_exprs = self.ctx.runner_config.max_expr_level as usize;
         let num_select_exprs = self.rng.random_range(1..=cfg_max_select_exprs);
 
+        let available_types = get_available_data_types();
         let select_exprs = (0..num_select_exprs)
-            .map(|_| expr_gen.generate_random_expr(DataType::Int64, 0))
+            .map(|_| {
+                // Pick a random type from available types instead of hardcoded Int64
+                let fuzzer_type = &available_types[self.rng.random_range(0..available_types.len())];
+                let data_type = fuzzer_type.to_datafusion_type();
+                expr_gen.generate_random_expr(data_type, 0)
+            })
             .collect::<Vec<_>>();
 
         // Build FROM clause

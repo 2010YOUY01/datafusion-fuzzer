@@ -5,12 +5,15 @@ use tracing_subscriber::{EnvFilter, filter::LevelFilter, fmt, prelude::*};
 
 use datafuzzer::{
     cli::{Cli, FuzzerRunnerConfig, TuiApp, init, restore, run_fuzzer},
-    common::Result,
+    common::{Result, init_available_data_types},
     fuzz_runner::FuzzerRunner,
 };
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize available data types early
+    init_available_data_types();
+
     let cli = Cli::parse();
     let config = FuzzerRunnerConfig::from_cli(&cli)?;
     let _log_guards = setup_logging(&config)?;
@@ -27,7 +30,12 @@ async fn main() -> Result<()> {
     }
 
     // Run the fuzzer concurrently
-    run_fuzzer(config, Arc::clone(&fuzzer)).await
+    run_fuzzer(config, Arc::clone(&fuzzer)).await?;
+
+    // Print final stats
+    print_final_stats(&fuzzer);
+
+    Ok(())
 }
 
 /// RAII logging workers
@@ -146,4 +154,44 @@ fn setup_logging(config: &FuzzerRunnerConfig) -> Result<LogGuards> {
     }
 
     Ok(log_guards)
+}
+
+/// Print final statistics when the fuzzer completes
+fn print_final_stats(fuzzer: &Arc<FuzzerRunner>) {
+    let stats = fuzzer.get_tui_stats();
+
+    println!("\n{}", "=".repeat(60));
+    println!("🎯 DataFusion Fuzzer - Final Statistics");
+    println!("{}", "=".repeat(60));
+
+    println!("📊 Execution Summary:");
+    println!("  • Rounds Completed: {}", stats.rounds_completed);
+    println!("  • Queries Executed: {}", stats.queries_executed);
+    println!("  • Query Success Rate: {:.2}%", stats.success_rate);
+    println!("  • Queries Per Second: {:.2}", stats.queries_per_second);
+
+    let total_secs = stats.running_time_secs;
+    let hours = (total_secs / 3600.0) as u64;
+    let minutes = ((total_secs % 3600.0) / 60.0) as u64;
+    let seconds = total_secs % 60.0;
+
+    if hours > 0 {
+        println!("  • Total Runtime: {}h {}m {:.2}s", hours, minutes, seconds);
+    } else if minutes > 0 {
+        println!("  • Total Runtime: {}m {:.2}s", minutes, seconds);
+    } else {
+        println!("  • Total Runtime: {:.2}s", seconds);
+    }
+
+    if !stats.recent_query.is_empty() {
+        println!("\n🔍 Most Recent Query:");
+        println!("{}", "-".repeat(40));
+        for line in stats.recent_query.lines() {
+            println!("  {}", line);
+        }
+        println!("{}", "-".repeat(40));
+    }
+
+    println!("{}", "=".repeat(60));
+    println!("✅ Fuzzing completed successfully!");
 }

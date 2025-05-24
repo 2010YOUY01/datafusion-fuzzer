@@ -37,7 +37,7 @@ pub struct TuiStats {
     pub queries_succeeded: u64,
     pub success_rate: f64,
     pub queries_per_second: f64,
-    pub running_time_secs: u64,
+    pub running_time_secs: f64,
     pub recent_query: String,
 }
 
@@ -93,8 +93,9 @@ impl FuzzerRunner {
         let stats = self.get_stats();
         let elapsed = stats.start_time.elapsed();
 
-        let qps = if elapsed.as_secs() > 0 {
-            stats.queries_executed as f64 / elapsed.as_secs() as f64
+        let elapsed_secs = elapsed.as_secs_f64();
+        let qps = if elapsed_secs > 0.0 {
+            stats.queries_executed as f64 / elapsed_secs
         } else {
             0.0
         };
@@ -114,7 +115,7 @@ impl FuzzerRunner {
             queries_succeeded: stats.queries_succeeded,
             success_rate,
             queries_per_second: qps,
-            running_time_secs: elapsed.as_secs(),
+            running_time_secs: elapsed_secs,
             recent_query: recent_query,
         }
     }

@@ -10,7 +10,7 @@ use datafusion::{
 use rand::{Rng, rngs::StdRng};
 
 use crate::{
-    common::{LogicalTable, rng::rng_from_seed},
+    common::{FuzzerDataType, LogicalTable, rng::rng_from_seed},
     fuzz_context::GlobalContext,
 };
 
@@ -43,7 +43,10 @@ impl ExprGenerator {
         self
     }
 
-    fn pick_random_expr_with_return_type(&mut self, target_type: DataType) -> Arc<ExprWrapper> {
+    fn pick_random_expr_with_return_type(
+        &mut self,
+        target_type: DataType,
+    ) -> Option<Arc<ExprWrapper>> {
         let exprs = all_available_exprs();
         let expr_with_return_type: Vec<Arc<ExprWrapper>> = exprs
             .iter()
@@ -51,10 +54,15 @@ impl ExprGenerator {
             .map(|expr| Arc::clone(expr))
             .collect();
 
+        // If no expressions match the target type, return None
+        if expr_with_return_type.is_empty() {
+            return None;
+        }
+
         let expr =
             expr_with_return_type[self.rng.random_range(0..expr_with_return_type.len())].clone();
 
-        expr
+        Some(expr)
     }
 
     pub fn generate_random_expr(&mut self, target_type: DataType, cur_level: u32) -> Expr {
@@ -64,15 +72,20 @@ impl ExprGenerator {
             return self.generate_leaf_expr(target_type);
         }
 
-        let random_expr = self.pick_random_expr_with_return_type(target_type.clone());
-        let child_signature = random_expr.pick_child_signature(target_type, &mut self.rng);
+        // Try to pick a random expression with the target return type
+        if let Some(random_expr) = self.pick_random_expr_with_return_type(target_type.clone()) {
+            let child_signature = random_expr.pick_child_signature(target_type, &mut self.rng);
 
-        let child_exprs: Vec<Expr> = child_signature
-            .iter()
-            .map(|dt| self.generate_random_expr(dt.clone(), cur_level + 1))
-            .collect();
+            let child_exprs: Vec<Expr> = child_signature
+                .iter()
+                .map(|dt| self.generate_random_expr(dt.clone(), cur_level + 1))
+                .collect();
 
-        self.build_with_childs(random_expr.expr.clone(), &child_exprs)
+            self.build_with_childs(random_expr.expr.clone(), &child_exprs)
+        } else {
+            // No expressions available for this type, fallback to leaf expression
+            self.generate_leaf_expr(target_type)
+        }
     }
 
     // Generate either a constant value or a column reference
@@ -85,8 +98,15 @@ impl ExprGenerator {
         }
 
         // Otherwise, generate a constant literal
-        let scalar_value = generate_scalar_literal(&mut self.rng, target_type, true);
-        Expr::Literal(scalar_value)
+        if let Some(fuzzer_type) = FuzzerDataType::from_datafusion_type(&target_type) {
+            let scalar_value = generate_scalar_literal(&mut self.rng, &fuzzer_type, true);
+            Expr::Literal(scalar_value)
+        } else {
+            // Fallback to a simple boolean literal for unsupported types
+            let scalar_value =
+                generate_scalar_literal(&mut self.rng, &FuzzerDataType::Boolean, true);
+            Expr::Literal(scalar_value)
+        }
     }
 
     fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {

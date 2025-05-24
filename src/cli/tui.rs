@@ -101,7 +101,7 @@ impl Widget for &TuiApp {
             ]),
             Line::from(vec![
                 "Running Time: ".into(),
-                stats.running_time_secs.to_string().yellow(),
+                format!("{:.2}s", stats.running_time_secs).yellow(),
             ]),
             Line::from(""),
             Line::from("─".repeat(40).cyan()), // Add a separator line before query
