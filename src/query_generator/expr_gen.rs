@@ -162,6 +162,21 @@ impl ExprGenerator {
                 Operator::Minus,
                 Box::new(child_exprs[1].clone()),
             )),
+            BaseExpr::Mul => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(child_exprs[0].clone()),
+                Operator::Multiply,
+                Box::new(child_exprs[1].clone()),
+            )),
+            BaseExpr::Div => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(child_exprs[0].clone()),
+                Operator::Divide,
+                Box::new(child_exprs[1].clone()),
+            )),
+            BaseExpr::Mod => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(child_exprs[0].clone()),
+                Operator::Modulo,
+                Box::new(child_exprs[1].clone()),
+            )),
         }
     }
 }

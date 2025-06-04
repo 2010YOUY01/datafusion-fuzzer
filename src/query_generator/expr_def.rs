@@ -3,7 +3,7 @@ use rand::{Rng, rngs::StdRng};
 use std::sync::{Arc, LazyLock};
 use strum::{EnumIter, IntoEnumIterator};
 
-use super::expr_impl::{AddExpr, SubExpr};
+use super::expr_impl::{AddExpr, DivExpr, ModExpr, MulExpr, SubExpr};
 
 /// A wrapper of datafusion expression
 pub struct ExprWrapper {
@@ -71,6 +71,9 @@ pub enum TypeGroup {
 pub enum BaseExpr {
     Add,
     Sub,
+    Mul,
+    Div,
+    Mod,
 }
 
 impl BaseExpr {
@@ -78,6 +81,9 @@ impl BaseExpr {
         match self {
             BaseExpr::Add => Box::new(AddExpr),
             BaseExpr::Sub => Box::new(SubExpr),
+            BaseExpr::Mul => Box::new(MulExpr),
+            BaseExpr::Div => Box::new(DivExpr),
+            BaseExpr::Mod => Box::new(ModExpr),
         }
     }
 }
