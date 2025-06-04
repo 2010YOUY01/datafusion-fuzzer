@@ -53,7 +53,8 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -
 
             // Generate a SQL statement with a seed derived from the global seed
             let query_seed = config.seed.wrapping_add((round as u64) * 1000 + i as u64);
-            let stmt_result = SelectStatementBuilder::new(query_seed, Arc::clone(&ctx)).build();
+            let stmt_result =
+                SelectStatementBuilder::new(query_seed, Arc::clone(&ctx)).generate_stmt();
 
             match stmt_result {
                 Ok(stmt) => {

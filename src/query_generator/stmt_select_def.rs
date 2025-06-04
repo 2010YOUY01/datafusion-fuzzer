@@ -17,6 +17,7 @@ use super::expr_gen::ExprGenerator;
 pub struct SelectStatement {
     select_exprs: Vec<Expr>,
     from_clause: FromClause,
+    where_clause: Option<Expr>,
 }
 
 impl SelectStatement {
@@ -55,6 +56,12 @@ impl SelectStatement {
 
         sql.push_str(&table_strings.join(", "));
 
+        // Add WHERE clause if present
+        if let Some(where_expr) = &self.where_clause {
+            let where_string = expr_to_sql(where_expr)?;
+            sql.push_str(&format!("\nWHERE {}", where_string));
+        }
+
         Ok(sql)
     }
 }
@@ -84,7 +91,7 @@ impl SelectStatementBuilder {
         }
     }
 
-    pub fn build(&mut self) -> Result<SelectStatement> {
+    pub fn generate_stmt(&mut self) -> Result<SelectStatement> {
         // 1. Pick src tables
         self.pick_src_tables()?;
 
@@ -95,18 +102,10 @@ impl SelectStatementBuilder {
         let mut expr_gen = expr_gen.with_src_columns(Arc::new(src_columns));
 
         // Build SELECT clause: generate expression list
-        let cfg_max_select_exprs = self.ctx.runner_config.max_expr_level as usize;
-        let num_select_exprs = self.rng.random_range(1..=cfg_max_select_exprs);
+        let select_exprs = self.generate_select_exprs(&mut expr_gen)?;
 
-        let available_types = get_available_data_types();
-        let select_exprs = (0..num_select_exprs)
-            .map(|_| {
-                // Pick a random type from available types instead of hardcoded Int64
-                let fuzzer_type = &available_types[self.rng.random_range(0..available_types.len())];
-                let data_type = fuzzer_type.to_datafusion_type();
-                expr_gen.generate_random_expr(data_type, 0)
-            })
-            .collect::<Vec<_>>();
+        // Build WHERE clause (optional)
+        let where_clause = self.generate_where_clause(&mut expr_gen)?;
 
         // Build FROM clause
         Ok(SelectStatement {
@@ -118,10 +117,11 @@ impl SelectStatementBuilder {
                     .map(|table| (table.clone(), None))
                     .collect(),
             },
+            where_clause,
         })
     }
 
-    // ==== Helper functions for `build()` ====
+    // ==== Helper functions for `generate_stmt()` ====
     pub fn pick_src_tables(&mut self) -> Result<()> {
         // TODO: Support duplicate table like `... from t1, t1 as t1_2` in the future
 
@@ -150,5 +150,36 @@ impl SelectStatementBuilder {
         self.src_tables.extend(selected_tables);
 
         Ok(())
+    }
+
+    /// Generate a random WHERE clause expression (returns None for no WHERE clause)
+    fn generate_where_clause(&mut self, expr_gen: &mut ExprGenerator) -> Result<Option<Expr>> {
+        // 50% chance to generate a WHERE clause
+        if self.rng.random_bool(0.9) {
+            // Generate a boolean expression for the WHERE clause
+            let where_expr =
+                expr_gen.generate_random_expr(datafusion::arrow::datatypes::DataType::Boolean, 0);
+            Ok(Some(where_expr))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Generate a random list of SELECT expressions
+    fn generate_select_exprs(&mut self, expr_gen: &mut ExprGenerator) -> Result<Vec<Expr>> {
+        let cfg_max_select_exprs = self.ctx.runner_config.max_expr_level as usize;
+        let num_select_exprs = self.rng.random_range(1..=cfg_max_select_exprs);
+
+        let available_types = get_available_data_types();
+        let select_exprs = (0..num_select_exprs)
+            .map(|_| {
+                // Pick a random type from available types instead of hardcoded Int64
+                let fuzzer_type = &available_types[self.rng.random_range(0..available_types.len())];
+                let data_type = fuzzer_type.to_datafusion_type();
+                expr_gen.generate_random_expr(data_type, 0)
+            })
+            .collect::<Vec<_>>();
+
+        Ok(select_exprs)
     }
 }

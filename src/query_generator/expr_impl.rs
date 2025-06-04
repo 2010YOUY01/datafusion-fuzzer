@@ -3,6 +3,13 @@ use datafusion::arrow::datatypes::DataType;
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
 use crate::common::get_numeric_data_types;
 
+/// To add new expressions: Add a new variant to [`BaseExpr`] and then follow the pattern along.
+/// - [ ] Numeric Operators: +, -, *, /, %
+/// - [ ] Comparison Operators: =, !=, <, <=, >, >=, <=>, IS DISTINCT FROM, IS NOT DISTINCT FROM, ~, ~*, !~, !~*, ~~ (LIKE), ~~* (ILIKE), !~~ (NOT LIKE), !~~* (NOT ILIKE)
+/// - [ ] Logical Operators: AND, OR
+/// - [ ] Bitwise Operators: &, |, #, >>, <<
+/// - [ ] Other Operators: || (concat), @> (contains), <@ (contained by)
+
 pub struct AddExpr;
 impl BaseExprWithInfo for AddExpr {
     fn describe(&self) -> ExprWrapper {
