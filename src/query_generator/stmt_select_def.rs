@@ -91,7 +91,8 @@ impl SelectStatementBuilder {
         // 2. Generate select exprs
         let expr_seed = self.rng.next_u64();
         let expr_gen = ExprGenerator::new(expr_seed, self.ctx.clone());
-        let mut expr_gen = expr_gen.with_src_tables(Arc::new(self.src_tables.clone()));
+        let src_columns = ExprGenerator::tables_to_columns(&self.src_tables);
+        let mut expr_gen = expr_gen.with_src_columns(Arc::new(src_columns));
 
         // Build SELECT clause: generate expression list
         let cfg_max_select_exprs = self.ctx.runner_config.max_expr_level as usize;
