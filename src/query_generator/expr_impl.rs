@@ -10,6 +10,9 @@ use crate::common::get_numeric_data_types;
 /// - [ ] Bitwise Operators: &, |, #, >>, <<
 /// - [ ] Other Operators: || (concat), @> (contains), <@ (contained by)
 
+// ========================
+// Numeric Operators
+// ========================
 pub struct AddExpr;
 impl BaseExprWithInfo for AddExpr {
     fn describe(&self) -> ExprWrapper {

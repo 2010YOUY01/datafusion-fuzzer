@@ -1,3 +1,5 @@
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
@@ -7,7 +9,7 @@ use crate::common::Result;
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::FuzzerRunner;
-use crate::query_generator::stmt_select_def::SelectStatementBuilder;
+use crate::oracle::{NoCrashOracle, Oracle};
 
 use super::FuzzerRunnerConfig;
 
@@ -45,55 +47,79 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -
             error!("Failed to display tables: {}", e);
         }
 
-        // Generate and execute queries for this round
-        let timeout_duration = Duration::from_secs(config.timeout_seconds);
+        // Create RNG for oracle selection
+        let mut rng = StdRng::seed_from_u64(config.seed.wrapping_add(round as u64));
 
+        // Run oracle tests for this round
         for i in 0..config.queries_per_round {
-            info!("Generating query {}/{}", i + 1, config.queries_per_round);
+            info!("Running oracle test {}/{}", i + 1, config.queries_per_round);
 
-            // Generate a SQL statement with a seed derived from the global seed
-            let query_seed = config.seed.wrapping_add((round as u64) * 1000 + i as u64);
-            let stmt_result =
-                SelectStatementBuilder::new(query_seed, Arc::clone(&ctx)).generate_stmt();
+            // Create a seed for this specific oracle test
+            let oracle_seed = config.seed.wrapping_add((round as u64) * 1000 + i as u64);
 
-            match stmt_result {
-                Ok(stmt) => {
-                    match stmt.to_sql_string() {
-                        Ok(sql) => {
-                            info!("Generated SQL: {}", sql);
+            // Create vector of available oracles
+            // Currently only contains NoCrashOracle, but can be extended in the future
+            let available_oracles: Vec<Box<dyn Oracle + Send>> =
+                vec![Box::new(NoCrashOracle::new(oracle_seed, Arc::clone(&ctx)))];
 
-                            // Execute the query with a timeout
-                            let start = Instant::now();
-                            let query_future = ctx.runtime_context.df_ctx.sql(&sql);
+            // Randomly select an oracle (currently only one option, but ready for expansion)
+            let oracle_index = rng.random_range(0..available_oracles.len());
+            let mut selected_oracle = available_oracles.into_iter().nth(oracle_index).unwrap();
 
-                            let success = match timeout(timeout_duration, query_future).await {
-                                Ok(result) => match result {
-                                    Ok(_) => {
-                                        let duration = start.elapsed();
-                                        info!("Query executed successfully in {:?}", duration);
-                                        true
+            info!("Selected oracle: {}", selected_oracle);
+
+            let start = Instant::now();
+
+            // Generate query group using the selected oracle
+            match selected_oracle.generate_query_group() {
+                Ok(query_group) => {
+                    if !query_group.is_empty() {
+                        let query = &query_group[0].query;
+                        info!("Generated query: {}", query);
+
+                        // Run the oracle validation with timeout
+                        let timeout_duration = Duration::from_secs(config.timeout_seconds);
+                        let success = match timeout(
+                            timeout_duration,
+                            selected_oracle.validate_consistency(&query_group),
+                        )
+                        .await
+                        {
+                            Ok(result) => match result {
+                                Ok(_) => {
+                                    let duration = start.elapsed();
+                                    info!("Oracle test passed in {:?}", duration);
+                                    true
+                                }
+                                Err(e) => {
+                                    error!("Oracle test failed: {}", e);
+
+                                    // Generate and log error report
+                                    if let Ok(error_report) =
+                                        selected_oracle.create_error_report(&query_group)
+                                    {
+                                        error!("Error Report:\n{}", error_report);
                                     }
-                                    Err(e) => {
-                                        warn!("Query execution error: {}", e);
-                                        false
-                                    }
-                                },
-                                Err(_) => {
-                                    error!(
-                                        "Query execution timed out after {:?}",
-                                        timeout_duration
-                                    );
                                     false
                                 }
-                            };
+                            },
+                            Err(_) => {
+                                error!("Oracle test timed out after {:?}", timeout_duration);
+                                false
+                            }
+                        };
 
-                            // Record the query execution in our stats
-                            fuzzer.record_query(&sql, success);
-                        }
-                        Err(e) => error!("Failed to convert statement to SQL: {}", e),
+                        // Record the oracle test in our stats
+                        fuzzer.record_query(query, success);
+                    } else {
+                        warn!("Oracle generated empty query group");
+                        fuzzer.record_query("", false);
                     }
                 }
-                Err(e) => error!("Failed to build statement: {}", e),
+                Err(e) => {
+                    error!("Failed to generate query group: {}", e);
+                    fuzzer.record_query("", false);
+                }
             }
         }
 
