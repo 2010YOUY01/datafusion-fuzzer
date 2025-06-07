@@ -1,4 +1,4 @@
-use datafuzzer::{
+use datafusion_fuzzer::{
     cli::FuzzerRunnerConfig,
     common::{Result, init_available_data_types},
     datasource_generator::dataset_generator::DatasetGenerator,

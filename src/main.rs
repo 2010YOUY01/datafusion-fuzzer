@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, filter::LevelFilter, fmt, prelude::*};
 
-use datafuzzer::{
+use datafusion_fuzzer::{
     cli::{Cli, FuzzerRunnerConfig, TuiApp, init, restore, run_fuzzer},
     common::{Result, init_available_data_types},
     fuzz_runner::FuzzerRunner,

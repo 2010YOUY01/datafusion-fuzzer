@@ -1,4 +1,4 @@
-# DataFuzzer Configuration
+# DataFusion Fuzzer Configuration
 
 # Random seed for reproducibility
 seed = 42

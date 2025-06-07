@@ -1,11 +1,11 @@
 use datafusion::config::ConfigOptions;
 use datafusion::prelude::SessionContext;
-use datafuzzer::oracle::QueryContext;
+use datafusion_fuzzer::oracle::QueryContext;
 /// Example demonstrating how to use the extended Oracle API with query-context pairs
 use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> datafuzzer::common::Result<()> {
+async fn main() -> datafusion_fuzzer::common::Result<()> {
     // Example 1: Configuration consistency testing
     // Test the same query across different DataFusion configurations
     let query = "SELECT COUNT(*) FROM test_table WHERE value > 100".to_string();

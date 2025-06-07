@@ -1,54 +1,56 @@
-# DataFuzzer
+# DataFusion Fuzzer
 
-A SQL query fuzzing tool for testing databases.
+> **🚧 Work In Progress** 
+> 
+> This project is still under active development. The following documentation is AI-generated and requires future cleanup and validation.
+>
+> This is a Rust rewrite of [datafusion-sqlancer](https://github.com/apache/datafusion/issues/11030), originally implemented in Java. The rewrite aims to simplify implementation, enable better integration with existing DataFusion tooling, and make test oracles applicable to `sqllogictests`. See [this issue](https://github.com/apache/datafusion/issues/14535) for more details on the motivation behind the Rust rewrite.
 
-## Usage
+A comprehensive fuzzing tool for Apache DataFusion, designed to test SQL query execution and find potential bugs, crashes, or inconsistencies in the query engine.
+
+## Quick Start
+
+To run the fuzzer with default settings:
 
 ```bash
-# Run with default settings
 cargo run --release
+```
 
-# Run with specific seed
-cargo run --release -- --seed 12345
+To run with a custom configuration:
 
-# Run with config file
-cargo run --release -- --config datafuzzer.toml
+```bash
+cargo run --release -- --config datafusion-fuzzer.toml
+```
 
-# Override config file settings with command line arguments
-cargo run --release -- --config datafuzzer.toml --rounds 5 --queries-per-round 20
-
-# Full options
-cargo run --release -- --help
+To run with command-line options:
+```bash
+cargo run --release -- --config datafusion-fuzzer.toml --rounds 5 --queries-per-round 20
 ```
 
 ## Configuration
 
-You can configure DataFuzzer in two ways:
+The fuzzer supports extensive configuration options to customize the fuzzing process.
 
-1. Command line arguments
-2. TOML configuration file
+You can configure DataFusion Fuzzer in two ways:
 
-Command line arguments take precedence over configuration file settings.
+1. **Configuration file**: Use a TOML file to specify detailed settings
+2. **Command-line arguments**: Override configuration file settings or use standalone
 
 ### Configuration File
 
-See `datafuzzer.toml` for an example configuration file:
+See `datafusion-fuzzer.toml` for an example configuration file:
 
 ```toml
-# Random seed for reproducibility
+# Fuzzing execution settings
 seed = 42
-
-# Number of fuzzing rounds to run
-rounds = 3  
-
-# Number of queries to generate per round
+rounds = 3
 queries_per_round = 10
-
-# Query timeout in seconds
 timeout_seconds = 30
 
-# Path to log file (comment out to use stdout only)
-# log_path = "logs/datafuzzer.log"
+# Logging settings  
+display_logs = true
+enable_tui = false
+# log_path = "logs/datafusion-fuzzer.log"
 
 # Table generation parameters
 max_column_count = 5
@@ -72,7 +74,7 @@ Options:
 
 ## Progress Tracker
 ### SQL Features
-- [ ] where
+- [x] where
 - [ ] sort + limit, offset
 - [ ] aggregate
 - [ ] having
@@ -98,7 +100,7 @@ Options:
 
 ### Infrastructure
 - [x] CLI
-- [ ] Oracle interface
+- [x] Oracle interface
 
 ## License
 
