@@ -113,12 +113,12 @@ impl ExprGenerator {
         // Otherwise, generate a constant literal
         if let Some(fuzzer_type) = FuzzerDataType::from_datafusion_type(&target_type) {
             let scalar_value = generate_scalar_literal(&mut self.rng, &fuzzer_type, true);
-            Expr::Literal(scalar_value)
+            Expr::Literal(scalar_value, None)
         } else {
             // Fallback to a simple boolean literal for unsupported types
             let scalar_value =
                 generate_scalar_literal(&mut self.rng, &FuzzerDataType::Boolean, true);
-            Expr::Literal(scalar_value)
+            Expr::Literal(scalar_value, None)
         }
     }
 

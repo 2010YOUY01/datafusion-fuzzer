@@ -70,7 +70,24 @@ impl FuzzerRunner {
         stats.rounds_completed += 1;
     }
 
-    /// Record a query execution
+    /// Record a query execution for display and statistics purposes
+    ///
+    /// This method serves two main purposes:
+    /// 1. **CLI Live Display**: Shows the most recent query being tested in the TUI/CLI interface
+    /// 2. **Statistics Tracking**: Updates execution counters and success rates for reporting
+    ///
+    /// **When to call this method:**
+    /// - Call once per generated query group, typically right after successful query generation
+    /// - The `success` parameter should reflect the final validation outcome
+    /// - For CLI display purposes, the query text is more important than the success status
+    ///
+    /// **Sampling behavior:**
+    /// - Queries are sampled for display based on time intervals to avoid overwhelming the UI
+    /// - All queries contribute to statistics, but only sampled queries are shown in the interface
+    ///
+    /// # Arguments
+    /// * `query` - The SQL query string to display and track
+    /// * `success` - Whether the query validation/execution succeeded
     pub fn record_query(&self, query: &str, success: bool) {
         let mut stats = self.stats.lock().unwrap();
         stats.queries_executed += 1;

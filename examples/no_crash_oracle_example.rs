@@ -3,7 +3,7 @@ use datafusion_fuzzer::{
     common::{Result, init_available_data_types},
     datasource_generator::dataset_generator::DatasetGenerator,
     fuzz_context::{GlobalContext, RuntimeContext},
-    oracle::{NoCrashOracle, Oracle},
+    oracle::{NoCrashOracle, Oracle, QueryExecutionResult},
 };
 use std::sync::Arc;
 
@@ -53,7 +53,34 @@ async fn main() -> Result<()> {
 
     // Test the query
     println!("\nTesting query execution...");
-    match oracle.validate_consistency(&query_group).await {
+
+    // Execute the query and create QueryExecutionResult
+    let query_context = &query_group[0];
+    let execution_result = match query_context.context.sql(&query_context.query).await {
+        Ok(dataframe) => {
+            match dataframe.collect().await {
+                Ok(batches) => {
+                    // Return all batches
+                    Ok(batches)
+                }
+                Err(e) => Err(datafusion_fuzzer::common::fuzzer_err(&format!(
+                    "Query execution failed: {}",
+                    e
+                ))),
+            }
+        }
+        Err(e) => Err(datafusion_fuzzer::common::fuzzer_err(&format!(
+            "Query planning failed: {}",
+            e
+        ))),
+    };
+
+    let query_execution_result = QueryExecutionResult {
+        query_context: Arc::new(query_context.clone()),
+        result: execution_result,
+    };
+
+    match oracle.validate_consistency(&[query_execution_result]).await {
         Ok(()) => {
             println!("✅ Query executed successfully without crashing!");
             println!("The query is stable and doesn't cause any errors.");
@@ -62,8 +89,12 @@ async fn main() -> Result<()> {
             println!("❌ Oracle caught a problematic query!");
             println!("Error: {}", e);
 
-            // Generate error report
-            let error_report = oracle.create_error_report(&query_group)?;
+            // Generate error report with failed result
+            let failed_result = QueryExecutionResult {
+                query_context: Arc::new(query_context.clone()),
+                result: Err(datafusion_fuzzer::common::fuzzer_err("Simulated failure")),
+            };
+            let error_report = oracle.create_error_report(&[failed_result])?;
             println!("\nDetailed Error Report:");
             println!("{}", error_report);
         }

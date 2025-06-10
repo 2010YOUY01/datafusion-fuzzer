@@ -1,4 +1,5 @@
 use crate::common::Result;
+use datafusion::arrow::array::RecordBatch;
 use datafusion::prelude::SessionContext;
 use std::sync::Arc;
 
@@ -28,25 +29,32 @@ use std::sync::Arc;
 ///     Consistency check:
 ///         Both queries should return the same result
 /// ```
+
+/// Query execution result containing both the query context and its execution result
+pub struct QueryExecutionResult {
+    pub query_context: Arc<QueryContext>,
+    pub result: Result<Vec<RecordBatch>>,
+}
+
 #[async_trait::async_trait]
 pub trait Oracle {
-    fn oracle_context(&self) -> OracleContext;
-
     /// Return the name of this oracle for display purposes
     fn name(&self) -> &'static str;
 
     /// Generate a group of equivalent query-context pairs to compare against each other
     fn generate_query_group(&mut self) -> Result<Vec<QueryContext>>;
 
-    /// Validate the consistency of a group of query-context pairs
+    /// Validate the consistency of a group of query execution results
+    /// # Parameters
+    /// * `results` - Query execution results in the same order as the query group
     /// # Returns
-    /// * `Ok(())` - Query-context pairs are consistent
-    /// * `Err(e)` - Query-context pairs are inconsistent, and `e` is the error message
-    async fn validate_consistency(&self, query_group: &[QueryContext]) -> Result<()>;
+    /// * `Ok(())` - Query execution results are consistent
+    /// * `Err(e)` - Query execution results are inconsistent, and `e` is the error message
+    async fn validate_consistency(&self, results: &[QueryExecutionResult]) -> Result<()>;
 
     /// After one test run failed in `validate_consistency`, this function will be called
     /// to create a detailed error report.
-    fn create_error_report(&self, query_group: &[QueryContext]) -> Result<String>;
+    fn create_error_report(&self, results: &[QueryExecutionResult]) -> Result<String>;
 }
 
 impl std::fmt::Display for dyn Oracle + Send {
@@ -132,6 +140,3 @@ impl QueryContext {
             .collect()
     }
 }
-
-/// Context for each oracle check. Used to generate reproducer/bug report
-pub struct OracleContext {}

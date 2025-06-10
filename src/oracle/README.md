@@ -1,10 +1,10 @@
-# Oracle API Extensions
+# Oracle System
 
-This document describes the extended Oracle trait API that supports query-context pairs for testing SQL query consistency across different DataFusion configurations.
+The Oracle system provides a framework for testing query consistency and correctness in DataFusion. It supports both traditional query equivalence testing and configuration consistency testing.
 
 ## Overview
 
-The Oracle trait has been extended to support not just groups of equivalent queries, but groups of query-context pairs. This enables testing scenarios where:
+The Oracle trait defines a contract for implementing test oracles that can:
 
 1. The same query should return identical results under different DataFusion configurations
 2. Different equivalent queries should return consistent results under the same configuration
@@ -92,7 +92,7 @@ group.push(QueryContext::with_description(
 ## Implementing an Oracle
 
 ```rust
-use crate::oracle::{Oracle, OracleContext, QueryContext};
+use crate::oracle::{Oracle, QueryContext};
 use crate::common::Result;
 
 pub struct MyOracle {
@@ -101,8 +101,8 @@ pub struct MyOracle {
 
 #[async_trait::async_trait]
 impl Oracle for MyOracle {
-    fn oracle_context(&self) -> OracleContext {
-        OracleContext {}
+    fn name(&self) -> &'static str {
+        "MyOracle"
     }
     
     fn generate_query_group(&mut self) -> Result<Vec<QueryContext>> {

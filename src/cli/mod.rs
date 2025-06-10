@@ -1,4 +1,5 @@
 mod config;
+pub mod error_whitelist;
 mod runner;
 mod tui;
 

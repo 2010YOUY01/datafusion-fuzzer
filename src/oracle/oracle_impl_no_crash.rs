@@ -1,10 +1,12 @@
 use crate::common::Result;
-use crate::oracle::{Oracle, OracleContext, QueryContext};
+use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 use std::sync::Arc;
 
-/// An oracle that generates random queries and ensures they don't crash or error.
-/// This is a simple but effective way to find basic stability issues in the query engine.
+/// An oracle that generates random queries and ensures they don't crash or produce non-whitelisted errors.
+/// This oracle works in conjunction with an error message whitelist system - whitelisted errors
+/// (such as "divide by zero") are considered acceptable, while non-whitelisted errors indicate
+/// potential stability issues in the query engine.
 pub struct NoCrashOracle {
     /// Random seed for query generation
     seed: u64,
@@ -23,10 +25,6 @@ impl NoCrashOracle {
 // random queries be executed directly. Need to investigate why.
 #[async_trait::async_trait]
 impl Oracle for NoCrashOracle {
-    fn oracle_context(&self) -> OracleContext {
-        OracleContext {}
-    }
-
     fn name(&self) -> &'static str {
         "NoCrashOracle"
     }
@@ -51,65 +49,52 @@ impl Oracle for NoCrashOracle {
         Ok(vec![query_context])
     }
 
-    async fn validate_consistency(&self, query_group: &[QueryContext]) -> Result<()> {
-        if query_group.is_empty() {
-            return Err(crate::common::fuzzer_err("No queries to validate"));
+    async fn validate_consistency(&self, results: &[QueryExecutionResult]) -> Result<()> {
+        if results.is_empty() {
+            return Err(crate::common::fuzzer_err("No query results to validate"));
         }
 
-        // For the no-crash oracle, we only need to test one query
-        let query_context = &query_group[0];
-
-        match query_context.context.sql(&query_context.query).await {
-            Ok(dataframe) => {
-                // Try to collect the results to ensure full execution
-                match dataframe.collect().await {
-                    Ok(_) => {
-                        // Query executed successfully without crashing
-                        Ok(())
-                    }
-                    Err(e) => {
-                        // Query failed during execution - this is what we want to catch
-                        Err(crate::common::fuzzer_err(&format!(
-                            "Query execution failed: {}",
-                            e
-                        )))
-                    }
-                }
-            }
-            Err(e) => {
-                // Query failed during SQL parsing/planning - this is also what we want to catch
-                Err(crate::common::fuzzer_err(&format!(
-                    "Query planning failed: {}",
-                    e
-                )))
-            }
-        }
+        // For the no-crash oracle, since error message whitelist check is now done
+        // outside in the runner, we always pass validation. The oracle only fails
+        // for truly unexpected crashes, not for whitelisted errors.
+        // The actual error checking (whitelist validation) is handled in execute_single_query.
+        Ok(())
     }
 
-    fn create_error_report(&self, query_group: &[QueryContext]) -> Result<String> {
+    fn create_error_report(&self, results: &[QueryExecutionResult]) -> Result<String> {
         let mut report = String::new();
         report.push_str("No-Crash Oracle Test Failed\n");
         report.push_str("============================\n\n");
 
-        if !query_group.is_empty() {
-            let query_context = &query_group[0];
+        if !results.is_empty() {
+            let query_result = &results[0];
+            let query_context = &*query_result.query_context;
+
             report.push_str(&format!(
-                "Query that caused crash/error:\n{}\n\n",
+                "Query that caused non-whitelisted error/crash:\n{}\n\n",
                 query_context.query
             ));
             report.push_str(&format!(
                 "Context: {}\n\n",
                 query_context.display_description()
             ));
+
+            // Include the specific error if available
+            if let Err(e) = &query_result.result {
+                report.push_str(&format!("Error details: {}\n\n", e));
+            }
         }
 
-        report.push_str("Expected: Query should execute without crashing or erroring\n");
-        report.push_str("Actual: Query crashed or returned an error\n\n");
+        report.push_str(
+            "Expected: Query should execute without crashing or return a whitelisted error\n",
+        );
+        report.push_str("Actual: Query crashed or returned a non-whitelisted error\n\n");
 
         report.push_str("This indicates a potential stability issue in the query engine.\n");
         report.push_str(
-            "The query should either return valid results or a graceful error message.\n",
+            "The query should either return valid results or a graceful whitelisted error message.\n",
         );
+        report.push_str("Whitelisted errors are acceptable and expected (e.g., divide by zero).\n");
 
         Ok(report)
     }
@@ -144,38 +129,8 @@ mod tests {
             runtime_context,
         });
 
-        let oracle = NoCrashOracle::new(42, ctx);
-        let _oracle_context = oracle.oracle_context();
+        let _oracle = NoCrashOracle::new(42, ctx);
         // If we get here without panicking, the oracle was created successfully
-    }
-
-    #[test]
-    fn test_no_crash_oracle_context() {
-        let config = FuzzerRunnerConfig {
-            seed: 42,
-            rounds: 1,
-            queries_per_round: 1,
-            timeout_seconds: 30,
-            log_path: Some("logs".into()),
-            display_logs: false,
-            enable_tui: false,
-            max_column_count: 5,
-            max_row_count: 100,
-            max_expr_level: 3,
-        };
-
-        let runtime_context = RuntimeContext::default();
-
-        let ctx = Arc::new(GlobalContext {
-            runner_config: config.to_runner_config(),
-            runtime_context,
-        });
-
-        let oracle = NoCrashOracle::new(42, ctx);
-        let oracle_context = oracle.oracle_context();
-
-        // OracleContext is a simple empty struct, so just verify it exists
-        let _ = oracle_context;
     }
 
     #[test]
@@ -253,14 +208,45 @@ mod tests {
         // Test that validation works (this should succeed for a simple query)
         // Note: This might fail if the random query is complex, but that's actually
         // what we want to test - the oracle should catch problematic queries
-        match oracle.validate_consistency(&query_group).await {
+
+        // Simulate query execution for testing
+        let query_context = &query_group[0];
+        let execution_result = match query_context.context.sql(&query_context.query).await {
+            Ok(dataframe) => {
+                match dataframe.collect().await {
+                    Ok(batches) => {
+                        // Return all batches or an empty vector
+                        Ok(batches)
+                    }
+                    Err(e) => Err(crate::common::fuzzer_err(&format!(
+                        "Query execution failed: {}",
+                        e
+                    ))),
+                }
+            }
+            Err(e) => Err(crate::common::fuzzer_err(&format!(
+                "Query planning failed: {}",
+                e
+            ))),
+        };
+
+        let query_execution_result = QueryExecutionResult {
+            query_context: Arc::new(query_context.clone()),
+            result: execution_result,
+        };
+
+        match oracle.validate_consistency(&[query_execution_result]).await {
             Ok(()) => {
                 // Query executed successfully - this is good
                 println!("Query executed successfully: {}", query_group[0].query);
             }
             Err(_) => {
                 // Query failed - this is what the oracle is designed to catch
-                let error_report = oracle.create_error_report(&query_group).unwrap();
+                let failed_result = QueryExecutionResult {
+                    query_context: Arc::new(query_context.clone()),
+                    result: Err(crate::common::fuzzer_err("Simulated failure")),
+                };
+                let error_report = oracle.create_error_report(&[failed_result]).unwrap();
                 println!("Oracle caught a problematic query:");
                 println!("{}", error_report);
                 // Don't fail the test - finding problematic queries is the purpose of the oracle
