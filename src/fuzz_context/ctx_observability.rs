@@ -11,7 +11,7 @@ pub async fn display_all_tables(ctx: Arc<GlobalContext>) -> Result<()> {
 
     for (table_name, _) in tables.iter() {
         let sql = format!("SELECT * FROM {} LIMIT 3", table_name);
-        let df_ctx = ctx.runtime_context.df_ctx.clone();
+        let df_ctx = ctx.runtime_context.get_session_context();
 
         match df_ctx.sql(&sql).await {
             Ok(df) => match df.collect().await {

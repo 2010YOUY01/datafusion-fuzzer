@@ -37,7 +37,7 @@ impl Oracle for NoCrashOracle {
 
         // Use the existing DataFusion context from the global context
         // This context already has all the tables registered from the dataset generator
-        let session_context = Arc::clone(&self.ctx.runtime_context.df_ctx);
+        let session_context = self.ctx.runtime_context.get_session_context();
 
         // Create a single QueryContext for this query
         let query_context = QueryContext::with_description(

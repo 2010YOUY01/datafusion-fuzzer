@@ -64,7 +64,7 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         // INSERT INTO t3 VALUES (52);
         // SELECT (86 / ((t3.col_t3_5_uint64 - 117) % t3.col_t3_5_uint64)) FROM t3;
         ErrorPattern::RegexMatch(
-            r"Query execution failed: Arrow error: Cast error: value of (.+) is out of range UINT(.+)",
+            r"(?i)Query execution failed: Arrow error: Cast error: value of (.+) is out of range uint(.+)",
         ),
         // =========================
         // Known Issues

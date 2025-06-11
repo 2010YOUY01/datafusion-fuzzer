@@ -87,10 +87,8 @@ impl DatasetGenerator {
             MemTable::try_new(Arc::clone(&dataset_schema), vec![vec![dataset.clone()]])?;
 
         // Register memtable into datafusion context
-        self.ctx
-            .runtime_context
-            .df_ctx
-            .register_table(table_name, Arc::new(mem_table))?;
+        let df_ctx = self.ctx.runtime_context.get_session_context();
+        df_ctx.register_table(table_name, Arc::new(mem_table))?;
 
         // Register table into fuzzer runtime context
         let logical_table = LogicalTable::new(

@@ -37,6 +37,13 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -
         }
 
         fuzzer.complete_round();
+
+        // Reset DataFusion context to drop all tables before the next round
+        if round < config.rounds - 1 {
+            // Don't reset after the last round
+            info!("Resetting DataFusion context for next round");
+            ctx.reset_datafusion_context();
+        }
     }
 
     Ok(())
