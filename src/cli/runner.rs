@@ -4,11 +4,12 @@ use rand::{Rng, SeedableRng};
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
-use crate::common::Result;
+use crate::common::{LogicalTable, LogicalTableType, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::FuzzerRunner;
 use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult};
+use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::{FuzzerRunnerConfig, error_whitelist};
 
@@ -26,7 +27,9 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -
     for round in 0..config.rounds {
         info!("Starting round {}/{}", round + 1, config.rounds);
 
+        // TODO: handle errors here in table/view creation, and catch potential bugs
         generate_datasets_for_round(&mut rng, &ctx).await?;
+        generate_views_for_round(&mut rng, &ctx).await?;
 
         for i in 0..config.queries_per_round {
             // ==== Running round `round`, test case `i` ====
@@ -65,6 +68,110 @@ async fn generate_datasets_for_round(rng: &mut StdRng, ctx: &Arc<GlobalContext>)
     if let Err(e) = display_all_tables(Arc::clone(ctx)).await {
         error!("Failed to display tables: {}", e);
     }
+
+    Ok(())
+}
+
+async fn generate_views_for_round(rng: &mut StdRng, ctx: &Arc<GlobalContext>) -> Result<()> {
+    // Get all available tables (not views)
+    let tables_lock = ctx.runtime_context.registered_tables.read().unwrap();
+    let available_tables: Vec<Arc<LogicalTable>> = tables_lock
+        .values()
+        .filter(|table| matches!(table.table_type, LogicalTableType::Table))
+        .cloned()
+        .collect();
+    drop(tables_lock);
+
+    if available_tables.is_empty() {
+        info!("No tables available for view generation");
+        return Ok(());
+    }
+
+    // TODO(cfg): make max views count configurable
+    let max_views = std::cmp::min(3, available_tables.len());
+    let num_views = rng.random_range(1..=max_views);
+
+    info!("Generating {} views", num_views);
+
+    // Create a single statement builder for all views in this round
+    let query_seed = rng.random::<u64>();
+    let mut stmt_builder = SelectStatementBuilder::new(query_seed, Arc::clone(ctx));
+
+    for i in 0..num_views {
+        // Pick a random table to create a view from
+        let selected_table = &available_tables[rng.random_range(0..available_tables.len())];
+
+        // =========================
+        // Core logic (generate view)
+        // =========================
+        let view_sql = match generate_view_sql(&mut stmt_builder, selected_table) {
+            Ok(sql) => sql,
+            Err(e) => {
+                error!("Failed to generate view SQL: {}", e);
+                continue; // Skip this view and try the next one
+            }
+        };
+        let view_name = format!("v{}", i);
+
+        info!("Creating view {} with SQL: {}", view_name, view_sql);
+
+        match create_and_register_view(&view_name, &view_sql, ctx).await {
+            Ok(_) => info!("Successfully created view: {}", view_name),
+            Err(e) => error!("Failed to create view {}: {}", view_name, e),
+        }
+    }
+
+    Ok(())
+}
+
+fn generate_view_sql(
+    stmt_builder: &mut SelectStatementBuilder,
+    _table: &LogicalTable,
+) -> Result<String> {
+    // Generate a statement using the existing query generator
+    let stmt = stmt_builder.generate_stmt()?;
+    let sql = stmt.to_sql_string()?;
+
+    Ok(sql)
+}
+
+async fn create_and_register_view(
+    view_name: &str,
+    view_sql: &str,
+    ctx: &Arc<GlobalContext>,
+) -> Result<()> {
+    let df_ctx = ctx.runtime_context.get_session_context();
+
+    let create_view_sql = format!("CREATE VIEW {} AS {}", view_name, view_sql);
+    info!("Executing CREATE VIEW SQL: {}", create_view_sql);
+
+    df_ctx
+        .sql(&create_view_sql)
+        .await
+        .map_err(|e| crate::common::fuzzer_err(&format!("Failed to execute CREATE VIEW: {}", e)))?
+        .collect()
+        .await
+        .map_err(|e| {
+            crate::common::fuzzer_err(&format!("Failed to complete CREATE VIEW: {}", e))
+        })?;
+
+    // Get the schema by querying the view with a LIMIT 0 query
+    let schema_query = format!("SELECT * FROM {} LIMIT 0", view_name);
+    let dataframe = df_ctx
+        .sql(&schema_query)
+        .await
+        .map_err(|e| crate::common::fuzzer_err(&format!("Failed to get view schema: {}", e)))?;
+
+    let schema = dataframe.schema().inner().clone();
+
+    // Register the view in our fuzzer context
+    let logical_table = LogicalTable::new(view_name.to_string(), schema, LogicalTableType::View);
+
+    ctx.runtime_context
+        .registered_tables
+        .write()
+        .unwrap()
+        .insert(view_name.to_string(), Arc::new(logical_table));
 
     Ok(())
 }
