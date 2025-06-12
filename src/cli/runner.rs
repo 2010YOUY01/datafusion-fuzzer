@@ -8,7 +8,9 @@ use crate::common::{LogicalTable, LogicalTableType, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::FuzzerRunner;
-use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult};
+use crate::oracle::{
+    NestedQueriesOracle, NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
+};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::{FuzzerRunnerConfig, error_whitelist};
@@ -95,7 +97,9 @@ async fn generate_views_for_round(rng: &mut StdRng, ctx: &Arc<GlobalContext>) ->
 
     // Create a single statement builder for all views in this round
     let query_seed = rng.random::<u64>();
-    let mut stmt_builder = SelectStatementBuilder::new(query_seed, Arc::clone(ctx));
+    let mut stmt_builder = SelectStatementBuilder::new(query_seed, Arc::clone(ctx))
+        // Avoid large joins to slow down fuzzing
+        .with_max_table_count(3);
 
     for i in 0..num_views {
         // Pick a random table to create a view from
@@ -185,8 +189,10 @@ async fn execute_oracle_test(
     let oracle_seed = rng.random::<u64>();
 
     // === Select a random oracle ===
-    let available_oracles: Vec<Box<dyn Oracle + Send>> =
-        vec![Box::new(NoCrashOracle::new(oracle_seed, Arc::clone(ctx)))];
+    let available_oracles: Vec<Box<dyn Oracle + Send>> = vec![
+        Box::new(NoCrashOracle::new(oracle_seed, Arc::clone(ctx))),
+        Box::new(NestedQueriesOracle::new(oracle_seed, Arc::clone(ctx))),
+    ];
     let oracle_index = rng.random_range(0..available_oracles.len());
     let mut selected_oracle = available_oracles.into_iter().nth(oracle_index).unwrap();
 
@@ -248,7 +254,7 @@ async fn execute_single_query(
     query_context: Arc<QueryContext>,
     fuzzer: &Arc<FuzzerRunner>,
 ) -> Result<Vec<RecordBatch>> {
-    let result = async {
+    let result: Result<Vec<RecordBatch>> = async {
         query_context
             .context
             .sql(&query_context.query)

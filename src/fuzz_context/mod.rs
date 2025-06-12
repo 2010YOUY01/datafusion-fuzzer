@@ -69,6 +69,7 @@ pub struct RunnerConfig {
     pub max_row_count: u64,
 
     pub max_expr_level: u32,
+    pub max_table_count: u32,
 }
 
 impl RunnerConfig {
@@ -91,6 +92,11 @@ impl RunnerConfig {
         self
     }
 
+    pub fn with_max_table_count(mut self, max_table_count: u32) -> Self {
+        self.max_table_count = max_table_count;
+        self
+    }
+
     pub fn with_display_logs(mut self, display_logs: bool) -> Self {
         self.display_logs = display_logs;
         self
@@ -102,6 +108,7 @@ impl RunnerConfig {
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
+            max_table_count: 3,
         }
     }
 }

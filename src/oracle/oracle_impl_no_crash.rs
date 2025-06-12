@@ -31,7 +31,9 @@ impl Oracle for NoCrashOracle {
 
     fn generate_query_group(&mut self) -> Result<Vec<QueryContext>> {
         // Generate a single random query using the existing query generator
-        let mut stmt_builder = SelectStatementBuilder::new(self.seed, Arc::clone(&self.ctx));
+        let mut stmt_builder = SelectStatementBuilder::new(self.seed, Arc::clone(&self.ctx))
+            // Views/subqueries are tested by other oracles
+            .with_allow_derived_tables(false);
         let stmt = stmt_builder.generate_stmt()?;
         let sql = stmt.to_sql_string()?;
 
@@ -120,6 +122,7 @@ mod tests {
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
+            max_table_count: 3,
         };
 
         let runtime_context = RuntimeContext::default();
@@ -146,6 +149,7 @@ mod tests {
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
+            max_table_count: 3,
         };
 
         let runtime_context = RuntimeContext::default();
@@ -182,6 +186,7 @@ mod tests {
             max_column_count: 3,
             max_row_count: 10,
             max_expr_level: 2,
+            max_table_count: 3,
         };
 
         let runtime_context = RuntimeContext::default();

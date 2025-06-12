@@ -56,6 +56,7 @@ enable_tui = false
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_table_count = 3
 ```
 
 ### Command Line Options
@@ -71,6 +72,13 @@ Options:
   -h, --help                             Print help
   -V, --version                          Print version
 ```
+
+### Configuration Parameters
+
+- `max_table_count`: Maximum number of tables that can be selected in a single query (default: 3)
+- `max_column_count`: Maximum number of columns per generated table (default: 5)
+- `max_row_count`: Maximum number of rows per generated table (default: 100)
+- `max_expr_level`: Maximum expression nesting level (default: 3)
 
 ## Progress Tracker
 ### SQL Features

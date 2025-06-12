@@ -25,6 +25,7 @@ pub struct FuzzerRunnerConfig {
     pub max_column_count: u64,
     pub max_row_count: u64,
     pub max_expr_level: u32,
+    pub max_table_count: u32,
 }
 
 impl Default for FuzzerRunnerConfig {
@@ -40,6 +41,7 @@ impl Default for FuzzerRunnerConfig {
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
+            max_table_count: 3,
         }
     }
 }
@@ -54,6 +56,7 @@ impl FuzzerRunnerConfig {
             .with_max_column_count(self.max_column_count)
             .with_max_row_count(self.max_row_count)
             .with_max_expr_level(self.max_expr_level)
+            .with_max_table_count(self.max_table_count)
             .with_display_logs(self.display_logs)
     }
 

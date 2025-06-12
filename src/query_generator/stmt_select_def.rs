@@ -5,7 +5,10 @@ use rand::prelude::IndexedRandom;
 use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
-    common::{LogicalTable, Result, fuzzer_err, get_available_data_types, rng::rng_from_seed},
+    common::{
+        LogicalTable, LogicalTableType, Result, fuzzer_err, get_available_data_types,
+        rng::rng_from_seed,
+    },
     fuzz_context::GlobalContext,
 };
 
@@ -78,6 +81,19 @@ pub struct SelectStatementBuilder {
     rng: StdRng,
     ctx: Arc<GlobalContext>,
 
+    // ==== Configuration ====
+    // Configurations related to `SelectStatementBuilder`'s generation policy
+    // This is possible to set by:
+    // 1. Global configuration
+    // 2. Oracle-specific requirements (e.g., limiting tables for view testing, and
+    // there won't be large joins, the fuzzing speed can be improved)
+
+    // Max number of tables in the `FROM` clause
+    max_table_count: Option<u32>,
+
+    // Allow using views and subqueries in the FROM clause
+    allow_derived_tables: bool,
+
     // ==== Intermediate states to build the final select stmt ====
     src_tables: Vec<LogicalTable>,
 }
@@ -87,8 +103,23 @@ impl SelectStatementBuilder {
         Self {
             rng: rng_from_seed(seed),
             ctx: context,
+            max_table_count: None,
+            allow_derived_tables: false,
             src_tables: Vec::new(),
         }
+    }
+
+    /// Override the maximum number of tables to select from
+    /// If not set, uses the global configuration value
+    pub fn with_max_table_count(mut self, max_table_count: u32) -> Self {
+        self.max_table_count = Some(max_table_count);
+        self
+    }
+
+    /// Enable or disable the use of derived tables (views and subqueries) in the FROM clause
+    pub fn with_allow_derived_tables(mut self, allow_derived_tables: bool) -> Self {
+        self.allow_derived_tables = allow_derived_tables;
+        self
     }
 
     pub fn generate_stmt(&mut self) -> Result<SelectStatement> {
@@ -126,20 +157,42 @@ impl SelectStatementBuilder {
         // TODO: Support duplicate table like `... from t1, t1 as t1_2` in the future
 
         // ==== Pick some unique tables and store inside builder ====
-        let num_src_tables = self.rng.random_range(1..=3);
+        // Use local override if available, otherwise use global config
+        let cfg_max_table_count = self
+            .max_table_count
+            .unwrap_or(self.ctx.runner_config.max_table_count);
+        let num_src_tables = self.rng.random_range(1..=cfg_max_table_count);
 
-        // Get all available tables
+        // Get all available tables, filtered by allow_derived_tables setting
         let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
-        let available_tables: Vec<Arc<LogicalTable>> = tables_lock.values().cloned().collect();
+        let available_tables: Vec<Arc<LogicalTable>> = tables_lock
+            .values()
+            .filter(|table| {
+                if self.allow_derived_tables {
+                    // Allow all table types (Table, View, Subquery)
+                    true
+                } else {
+                    // Only allow regular tables
+                    matches!(table.table_type, LogicalTableType::Table)
+                }
+            })
+            .cloned()
+            .collect();
 
         if available_tables.is_empty() {
-            return Err(fuzzer_err(
-                "No available tables regsitered inside fuzzer context.",
-            ));
+            let table_type_description = if self.allow_derived_tables {
+                "tables, views, or subqueries"
+            } else {
+                "tables"
+            };
+            return Err(fuzzer_err(&format!(
+                "No available {} registered inside fuzzer context.",
+                table_type_description
+            )));
         }
 
         // Determine how many tables to pick (bounded by available tables)
-        let num_tables = std::cmp::min(num_src_tables, available_tables.len());
+        let num_tables = std::cmp::min(num_src_tables, available_tables.len() as u32) as usize;
 
         // Use sample API for more elegant random selection
         let selected_tables = available_tables
@@ -181,5 +234,51 @@ impl SelectStatementBuilder {
             .collect::<Vec<_>>();
 
         Ok(select_exprs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::FuzzerRunnerConfig;
+    use crate::common::init_available_data_types;
+    use crate::datasource_generator::dataset_generator::DatasetGenerator;
+    use crate::fuzz_context::{GlobalContext, RuntimeContext};
+
+    #[test]
+    fn test_max_table_count_override() {
+        // Initialize data types
+        init_available_data_types();
+
+        // Create a config with max_table_count = 2
+        let config = FuzzerRunnerConfig {
+            max_table_count: 2,
+            ..FuzzerRunnerConfig::default()
+        };
+
+        let runtime_context = RuntimeContext::default();
+        let ctx = Arc::new(GlobalContext::new(
+            config.to_runner_config(),
+            runtime_context,
+        ));
+
+        // Generate some test tables
+        let mut dataset_generator = DatasetGenerator::new(1234, Arc::clone(&ctx));
+        let _table1 = dataset_generator.generate_dataset().unwrap();
+        let _table2 = dataset_generator.generate_dataset().unwrap();
+        let _table3 = dataset_generator.generate_dataset().unwrap();
+
+        // Test 1: Default behavior (should use global config max_table_count = 2)
+        let stmt_builder = SelectStatementBuilder::new(42, Arc::clone(&ctx));
+        assert_eq!(stmt_builder.max_table_count, None);
+
+        // Test 2: Override with specific value (should use override max_table_count = 1)
+        let mut stmt_builder_override =
+            SelectStatementBuilder::new(42, Arc::clone(&ctx)).with_max_table_count(1);
+        assert_eq!(stmt_builder_override.max_table_count, Some(1));
+
+        // Verify that the override is actually used in pick_src_tables
+        stmt_builder_override.pick_src_tables().unwrap();
+        assert_eq!(stmt_builder_override.src_tables.len(), 1);
     }
 }

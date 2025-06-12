@@ -27,6 +27,7 @@ async fn main() -> Result<()> {
         max_column_count: 3,
         max_row_count: 10,
         max_expr_level: 2,
+        max_table_count: 3,
     };
 
     // Create global context
