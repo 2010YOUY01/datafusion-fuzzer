@@ -1,16 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// A struct for storing and tracking live fuzzing statistics
-#[derive(Debug)]
-pub struct FuzzerRunner {
-    // Fuzzing runtime statistics
-    stats: Arc<Mutex<FuzzerStats>>,
-
-    // Sample interval for storing recent queries
-    sample_interval_secs: u64,
-}
-
 /// Live statistics for the fuzzing process
 #[derive(Debug, Clone)]
 pub struct FuzzerStats {
@@ -41,10 +31,10 @@ pub struct TuiStats {
     pub recent_query: String,
 }
 
-impl FuzzerRunner {
-    /// Create a new FuzzerRunner with the specified total rounds
+impl FuzzerStats {
+    /// Create new FuzzerStats with the specified total rounds
     pub fn new(total_rounds: u32) -> Self {
-        let stats = FuzzerStats {
+        Self {
             rounds_completed: 0,
             total_rounds,
             queries_executed: 0,
@@ -52,22 +42,7 @@ impl FuzzerRunner {
             start_time: Instant::now(),
             last_sample_time: Instant::now(),
             recent_query: String::new(),
-        };
-
-        Self {
-            stats: Arc::new(Mutex::new(stats)),
-            sample_interval_secs: 5, // Sample queries every 5 seconds
         }
-    }
-
-    /// Get a clone of the current statistics
-    pub fn get_stats(&self) -> FuzzerStats {
-        self.stats.lock().unwrap().clone()
-    }
-
-    pub fn complete_round(&self) {
-        let mut stats = self.stats.lock().unwrap();
-        stats.rounds_completed += 1;
     }
 
     /// Record a query execution for display and statistics purposes
@@ -88,52 +63,82 @@ impl FuzzerRunner {
     /// # Arguments
     /// * `query` - The SQL query string to display and track
     /// * `success` - Whether the query validation/execution succeeded
-    pub fn record_query(&self, query: &str, success: bool) {
-        let mut stats = self.stats.lock().unwrap();
-        stats.queries_executed += 1;
-        stats.queries_succeeded += if success { 1 } else { 0 };
+    /// * `sample_interval_secs` - The interval in seconds for sampling queries for display
+    pub fn record_query(&mut self, query: &str, success: bool, sample_interval_secs: u64) {
+        self.queries_executed += 1;
+        self.queries_succeeded += if success { 1 } else { 0 };
 
         let now = Instant::now();
 
         // Sample the query if enough time has passed since the last sample OR if there's no existing query
-        if stats.recent_query.is_empty()
-            || now.duration_since(stats.last_sample_time).as_secs() >= self.sample_interval_secs
+        if self.recent_query.is_empty()
+            || now.duration_since(self.last_sample_time).as_secs() >= sample_interval_secs
         {
-            stats.last_sample_time = now;
+            self.last_sample_time = now;
             // Store the query as is to preserve multiline formatting
-            stats.recent_query = query.to_string();
+            self.recent_query = query.to_string();
         }
+    }
+
+    /// Complete a round of fuzzing
+    pub fn complete_round(&mut self) {
+        self.rounds_completed += 1;
     }
 
     /// Get statistics formatted for display in a TUI
     pub fn get_tui_stats(&self) -> TuiStats {
-        let stats = self.get_stats();
-        let elapsed = stats.start_time.elapsed();
+        let elapsed = self.start_time.elapsed();
 
         let elapsed_secs = elapsed.as_secs_f64();
         let qps = if elapsed_secs > 0.0 {
-            stats.queries_executed as f64 / elapsed_secs
+            self.queries_executed as f64 / elapsed_secs
         } else {
             0.0
         };
 
-        let success_rate = if stats.queries_executed > 0 {
-            (stats.queries_succeeded as f64 / stats.queries_executed as f64) * 100.0
+        let success_rate = if self.queries_executed > 0 {
+            (self.queries_succeeded as f64 / self.queries_executed as f64) * 100.0
         } else {
             0.0
         };
-
-        let recent_query = stats.recent_query;
 
         TuiStats {
-            rounds_completed: stats.rounds_completed,
-            total_rounds: stats.total_rounds,
-            queries_executed: stats.queries_executed,
-            queries_succeeded: stats.queries_succeeded,
+            rounds_completed: self.rounds_completed,
+            total_rounds: self.total_rounds,
+            queries_executed: self.queries_executed,
+            queries_succeeded: self.queries_succeeded,
             success_rate,
             queries_per_second: qps,
             running_time_secs: elapsed_secs,
-            recent_query: recent_query,
+            recent_query: self.recent_query.clone(),
         }
     }
+}
+
+/// Helper function to create a new shared FuzzerStats instance
+pub fn create_fuzzer_stats(total_rounds: u32) -> Arc<Mutex<FuzzerStats>> {
+    Arc::new(Mutex::new(FuzzerStats::new(total_rounds)))
+}
+
+/// Helper function to record a query execution
+pub fn record_query(
+    stats: &Arc<Mutex<FuzzerStats>>,
+    query: &str,
+    success: bool,
+    sample_interval_secs: u64,
+) {
+    let mut stats_guard = stats.lock().unwrap();
+    stats_guard.record_query(query, success, sample_interval_secs);
+}
+
+/// Helper function to complete a fuzzing round
+pub fn complete_round(stats: &Arc<Mutex<FuzzerStats>>) {
+    let mut stats_guard = stats.lock().unwrap();
+    stats_guard.complete_round();
+}
+
+/// Helper function to get TUI stats
+pub fn get_tui_stats(stats: &Arc<Mutex<FuzzerStats>>) -> TuiStats {
+    let stats_guard = stats.lock().unwrap();
+    stats_guard.get_tui_stats()
 }

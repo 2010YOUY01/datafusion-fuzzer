@@ -1,5 +1,5 @@
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
@@ -12,18 +12,18 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-use crate::fuzz_runner::FuzzerRunner;
+use crate::fuzz_runner::{FuzzerStats, get_tui_stats};
 
 #[derive(Debug)]
 pub struct TuiApp {
-    fuzzer: Arc<FuzzerRunner>,
+    fuzzer_stats: Arc<Mutex<FuzzerStats>>,
     exit: bool,
 }
 
 impl TuiApp {
-    pub fn new(fuzzer: Arc<FuzzerRunner>) -> Self {
+    pub fn new(fuzzer_stats: Arc<Mutex<FuzzerStats>>) -> Self {
         Self {
-            fuzzer,
+            fuzzer_stats,
             exit: false,
         }
     }
@@ -79,7 +79,7 @@ impl Widget for &TuiApp {
             .title(title.centered())
             .border_set(border::THICK);
 
-        let stats = self.fuzzer.get_tui_stats();
+        let stats = get_tui_stats(&self.fuzzer_stats);
 
         // Create the basic stats text
         let mut lines = vec![

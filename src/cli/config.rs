@@ -19,9 +19,12 @@ pub struct FuzzerRunnerConfig {
     pub timeout_seconds: u64,
     pub log_path: Option<PathBuf>,
 
-    // Parameters propagated to RunnerConfig
+    // UI and display parameters
     pub display_logs: bool,
     pub enable_tui: bool,
+    pub sample_interval_secs: u64,
+
+    // Parameters propagated to RunnerConfig
     pub max_column_count: u64,
     pub max_row_count: u64,
     pub max_expr_level: u32,
@@ -38,6 +41,7 @@ impl Default for FuzzerRunnerConfig {
             log_path: Some(PathBuf::from("logs")),
             display_logs: false,
             enable_tui: true,
+            sample_interval_secs: 5, // Sample queries every 5 seconds
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,

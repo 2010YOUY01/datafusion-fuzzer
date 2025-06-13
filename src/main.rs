@@ -6,7 +6,7 @@ use tracing_subscriber::{EnvFilter, filter::LevelFilter, fmt, prelude::*};
 use datafusion_fuzzer::{
     cli::{Cli, FuzzerRunnerConfig, TuiApp, init, restore, run_fuzzer},
     common::{Result, init_available_data_types},
-    fuzz_runner::FuzzerRunner,
+    fuzz_runner::{FuzzerStats, create_fuzzer_stats, get_tui_stats},
 };
 
 #[tokio::main]
@@ -15,25 +15,23 @@ async fn main() -> Result<()> {
     init_available_data_types();
 
     let cli = Cli::parse();
-    let config = FuzzerRunnerConfig::from_cli(&cli)?;
-    let _log_guards = setup_logging(&config)?;
-    let fuzzer = Arc::new(FuzzerRunner::new(config.rounds));
+    let runner_config = FuzzerRunnerConfig::from_cli(&cli)?;
+    let _log_guards = setup_logging(&runner_config)?;
+    let fuzzer_stats = create_fuzzer_stats(runner_config.rounds);
 
     // Spawn TUI in a separate thread (if enabled)
-    if config.enable_tui {
-        let tui_fuzzer = Arc::clone(&fuzzer);
+    if runner_config.enable_tui {
+        let tui_stats = Arc::clone(&fuzzer_stats);
         tokio::spawn(async move {
             let mut terminal = init();
-            let _ = TuiApp::new(tui_fuzzer).run(&mut terminal);
+            let _ = TuiApp::new(tui_stats).run(&mut terminal);
             restore();
         });
     }
 
-    // Run the fuzzer concurrently
-    run_fuzzer(config, Arc::clone(&fuzzer)).await?;
+    run_fuzzer(runner_config, Arc::clone(&fuzzer_stats)).await?;
 
-    // Print final stats
-    print_final_stats(&fuzzer);
+    print_final_stats(&fuzzer_stats);
 
     Ok(())
 }
@@ -157,8 +155,8 @@ fn setup_logging(config: &FuzzerRunnerConfig) -> Result<LogGuards> {
 }
 
 /// Print final statistics when the fuzzer completes
-fn print_final_stats(fuzzer: &Arc<FuzzerRunner>) {
-    let stats = fuzzer.get_tui_stats();
+fn print_final_stats(fuzzer_stats: &Arc<std::sync::Mutex<FuzzerStats>>) {
+    let stats = get_tui_stats(fuzzer_stats);
 
     println!("\n{}", "=".repeat(60));
     println!("🎯 DataFusion Fuzzer - Final Statistics");

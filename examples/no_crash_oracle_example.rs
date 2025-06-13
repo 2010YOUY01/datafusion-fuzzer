@@ -24,6 +24,7 @@ async fn main() -> Result<()> {
         log_path: Some("logs".into()),
         display_logs: false,
         enable_tui: false,
+        sample_interval_secs: 5,
         max_column_count: 3,
         max_row_count: 10,
         max_expr_level: 2,

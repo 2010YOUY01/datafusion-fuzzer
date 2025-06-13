@@ -21,6 +21,9 @@ display_logs = false
 # Enable TUI display
 enable_tui = true
 
+# Sample interval for query display (seconds)
+sample_interval_secs = 5
+
 # Table generation parameters
 max_column_count = 5
 max_row_count = 100

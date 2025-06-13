@@ -1,13 +1,13 @@
 use datafusion::arrow::record_batch::RecordBatch;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
 
 use crate::common::{LogicalTable, LogicalTableType, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
-use crate::fuzz_runner::FuzzerRunner;
+use crate::fuzz_runner::{FuzzerStats, complete_round, record_query};
 use crate::oracle::{
     NestedQueriesOracle, NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
 };
@@ -15,7 +15,11 @@ use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::{FuzzerRunnerConfig, error_whitelist};
 
-pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -> Result<()> {
+pub async fn run_fuzzer(
+    config: FuzzerRunnerConfig,
+    // Needs mutex due to concurrent access from TUI
+    fuzzer_stats: Arc<Mutex<FuzzerStats>>,
+) -> Result<()> {
     info!("Starting fuzzer with seed: {}", config.seed);
 
     let ctx = Arc::new(GlobalContext::new(
@@ -38,10 +42,10 @@ pub async fn run_fuzzer(config: FuzzerRunnerConfig, fuzzer: Arc<FuzzerRunner>) -
             info!("Running oracle test {}/{}", i + 1, config.queries_per_round);
 
             // >>> CORE LOGIC <<<
-            execute_oracle_test(&mut rng, &ctx, &fuzzer).await;
+            execute_oracle_test(&mut rng, &ctx, &fuzzer_stats, config.sample_interval_secs).await;
         }
 
-        fuzzer.complete_round();
+        complete_round(&fuzzer_stats);
 
         // Reset DataFusion context to drop all tables before the next round
         if round < config.rounds - 1 {
@@ -183,7 +187,8 @@ async fn create_and_register_view(
 async fn execute_oracle_test(
     rng: &mut StdRng,
     ctx: &Arc<GlobalContext>,
-    fuzzer: &Arc<FuzzerRunner>,
+    fuzzer_stats: &Arc<Mutex<FuzzerStats>>,
+    sample_interval_secs: u64,
 ) -> bool {
     // Generate oracle seed from the main RNG to maintain deterministic behavior
     let oracle_seed = rng.random::<u64>();
@@ -218,7 +223,12 @@ async fn execute_oracle_test(
         info!("Query:\n{}", query_context.query);
 
         let query_context_arc = Arc::new(query_context);
-        let execution_result = execute_single_query(Arc::clone(&query_context_arc), fuzzer).await;
+        let execution_result = execute_single_query(
+            Arc::clone(&query_context_arc),
+            fuzzer_stats,
+            sample_interval_secs,
+        )
+        .await;
 
         execution_results.push(QueryExecutionResult {
             query_context: query_context_arc,
@@ -252,7 +262,8 @@ async fn execute_oracle_test(
 /// or all fail. (TODO: implement this)
 async fn execute_single_query(
     query_context: Arc<QueryContext>,
-    fuzzer: &Arc<FuzzerRunner>,
+    fuzzer_stats: &Arc<Mutex<FuzzerStats>>,
+    sample_interval_secs: u64,
 ) -> Result<Vec<RecordBatch>> {
     let result: Result<Vec<RecordBatch>> = async {
         query_context
@@ -278,7 +289,12 @@ async fn execute_single_query(
         }
     }
 
-    fuzzer.record_query(&query_context.query, result.is_ok());
+    record_query(
+        fuzzer_stats,
+        &query_context.query,
+        result.is_ok(),
+        sample_interval_secs,
+    );
     result
 }
 
