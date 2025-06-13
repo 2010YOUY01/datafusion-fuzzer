@@ -1,8 +1,7 @@
 use datafusion_fuzzer::{
-    cli::FuzzerRunnerConfig,
     common::{Result, init_available_data_types},
     datasource_generator::dataset_generator::DatasetGenerator,
-    fuzz_context::{GlobalContext, RuntimeContext},
+    fuzz_context::{GlobalContext, RunnerConfig, RuntimeContext},
     oracle::{NoCrashOracle, Oracle, QueryExecutionResult},
 };
 use std::sync::Arc;
@@ -16,7 +15,7 @@ async fn main() -> Result<()> {
     println!("=======================");
 
     // Create configuration
-    let config = FuzzerRunnerConfig {
+    let config = RunnerConfig {
         seed: 42,
         rounds: 1,
         queries_per_round: 1,
@@ -34,7 +33,7 @@ async fn main() -> Result<()> {
     // Create global context
     let runtime_context = RuntimeContext::default();
     let ctx = Arc::new(GlobalContext {
-        runner_config: config.to_runner_config(),
+        runner_config: config,
         runtime_context,
     });
 

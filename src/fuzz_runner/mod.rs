@@ -132,7 +132,7 @@ pub fn record_query(
 }
 
 /// Helper function to complete a fuzzing round
-pub fn complete_round(stats: &Arc<Mutex<FuzzerStats>>) {
+pub fn update_stat_for_round_completion(stats: &Arc<Mutex<FuzzerStats>>) {
     let mut stats_guard = stats.lock().unwrap();
     stats_guard.complete_round();
 }

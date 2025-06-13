@@ -1,13 +1,16 @@
 pub mod ctx_observability;
 
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{
     Arc, RwLock,
     atomic::{AtomicU32, Ordering},
 };
 
 use datafusion::{common::HashMap, prelude::SessionContext};
+use serde::{Deserialize, Serialize};
 
-use crate::common::LogicalTable;
+use crate::common::{LogicalTable, Result, fuzzer_err};
 
 /// Create a default DataFusion SessionContext with standard configuration
 /// This ensures consistency between initial creation and reset operations
@@ -62,12 +65,29 @@ impl GlobalContext {
     }
 }
 
+/// Unified configuration for the DataFusion fuzzer.
+///
+/// This configuration controls both:
+/// 1. The overall fuzzing process (rounds, queries, timeout)
+/// 2. The table and query generation parameters
+/// 3. UI and display parameters
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RunnerConfig {
+    // General fuzzing parameters
+    pub seed: u64,
+    pub rounds: u32,
+    pub queries_per_round: u32,
+    pub timeout_seconds: u64,
+    pub log_path: Option<PathBuf>,
+
+    // UI and display parameters
     pub display_logs: bool,
-    /// Random table generation policy
+    pub enable_tui: bool,
+    pub sample_interval_secs: u64,
+
+    // Table and query generation parameters
     pub max_column_count: u64,
     pub max_row_count: u64,
-
     pub max_expr_level: u32,
     pub max_table_count: u32,
 }
@@ -75,6 +95,46 @@ pub struct RunnerConfig {
 impl RunnerConfig {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    pub fn with_rounds(mut self, rounds: u32) -> Self {
+        self.rounds = rounds;
+        self
+    }
+
+    pub fn with_queries_per_round(mut self, queries_per_round: u32) -> Self {
+        self.queries_per_round = queries_per_round;
+        self
+    }
+
+    pub fn with_timeout_seconds(mut self, timeout_seconds: u64) -> Self {
+        self.timeout_seconds = timeout_seconds;
+        self
+    }
+
+    pub fn with_log_path(mut self, log_path: Option<PathBuf>) -> Self {
+        self.log_path = log_path;
+        self
+    }
+
+    pub fn with_display_logs(mut self, display_logs: bool) -> Self {
+        self.display_logs = display_logs;
+        self
+    }
+
+    pub fn with_enable_tui(mut self, enable_tui: bool) -> Self {
+        self.enable_tui = enable_tui;
+        self
+    }
+
+    pub fn with_sample_interval_secs(mut self, sample_interval_secs: u64) -> Self {
+        self.sample_interval_secs = sample_interval_secs;
+        self
     }
 
     pub fn with_max_column_count(mut self, max_column_count: u64) -> Self {
@@ -97,14 +157,64 @@ impl RunnerConfig {
         self
     }
 
-    pub fn with_display_logs(mut self, display_logs: bool) -> Self {
-        self.display_logs = display_logs;
-        self
+    pub fn from_file(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .map_err(|e| fuzzer_err(&format!("Failed to read config file: {}", e)))?;
+
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| fuzzer_err(&format!("Failed to parse config file: {}", e)))?;
+
+        Ok(config)
+    }
+
+    pub fn from_cli(cli: &crate::cli::Cli) -> Result<Self> {
+        // Start with default or config file if provided
+        let mut config = if let Some(config_path) = &cli.config {
+            Self::from_file(config_path)?
+        } else {
+            Self::default()
+        };
+
+        // Override with CLI arguments if provided
+        if cli.seed != 42 {
+            config.seed = cli.seed;
+        }
+
+        if let Some(rounds) = cli.rounds {
+            config.rounds = rounds;
+        }
+
+        if let Some(queries) = cli.queries_per_round {
+            config.queries_per_round = queries;
+        }
+
+        if let Some(timeout) = cli.timeout {
+            config.timeout_seconds = timeout;
+        }
+
+        if let Some(log_path) = &cli.log_path {
+            config.log_path = Some(log_path.clone());
+        }
+
+        // Set display_logs from CLI argument
+        config.display_logs = cli.display_logs;
+
+        // Set enable_tui from CLI argument
+        config.enable_tui = cli.enable_tui;
+
+        Ok(config)
     }
 
     pub fn default() -> Self {
         Self {
+            seed: 42,
+            rounds: 3,
+            queries_per_round: 10,
+            timeout_seconds: 30,
+            log_path: Some(PathBuf::from("logs")),
             display_logs: false,
+            enable_tui: true,
+            sample_interval_secs: 5,
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,

@@ -105,13 +105,13 @@ impl Oracle for NoCrashOracle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::FuzzerRunnerConfig;
     use crate::datasource_generator::dataset_generator::DatasetGenerator;
+    use crate::fuzz_context::RunnerConfig;
     use crate::fuzz_context::{GlobalContext, RuntimeContext};
 
     #[test]
     fn test_no_crash_oracle_creation() {
-        let config = FuzzerRunnerConfig {
+        let config = RunnerConfig {
             seed: 42,
             rounds: 1,
             queries_per_round: 1,
@@ -129,7 +129,7 @@ mod tests {
         let runtime_context = RuntimeContext::default();
 
         let ctx = Arc::new(GlobalContext {
-            runner_config: config.to_runner_config(),
+            runner_config: config,
             runtime_context,
         });
 
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_no_crash_oracle_display() {
-        let config = FuzzerRunnerConfig {
+        let config = RunnerConfig {
             seed: 42,
             rounds: 1,
             queries_per_round: 1,
@@ -157,7 +157,7 @@ mod tests {
         let runtime_context = RuntimeContext::default();
 
         let ctx = Arc::new(GlobalContext {
-            runner_config: config.to_runner_config(),
+            runner_config: config,
             runtime_context,
         });
 
@@ -177,7 +177,7 @@ mod tests {
         // Initialize data types
         init_available_data_types();
 
-        let config = FuzzerRunnerConfig {
+        let config = RunnerConfig {
             seed: 42,
             rounds: 1,
             queries_per_round: 1,
@@ -195,7 +195,7 @@ mod tests {
         let runtime_context = RuntimeContext::default();
 
         let ctx = Arc::new(GlobalContext {
-            runner_config: config.to_runner_config(),
+            runner_config: config,
             runtime_context,
         });
 

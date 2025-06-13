@@ -1,10 +1,8 @@
-mod config;
 pub mod error_whitelist;
 mod runner;
 mod tui;
 
 use clap::Parser;
-pub use config::FuzzerRunnerConfig;
 pub use runner::run_fuzzer;
 use std::path::PathBuf;
 pub use tui::{TuiApp, init, restore};

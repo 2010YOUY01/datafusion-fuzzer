@@ -6,24 +6,24 @@ use tracing::{error, info, warn};
 
 use crate::common::{LogicalTable, LogicalTableType, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
-use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
-use crate::fuzz_runner::{FuzzerStats, complete_round, record_query};
+use crate::fuzz_context::{GlobalContext, RunnerConfig, ctx_observability::display_all_tables};
+use crate::fuzz_runner::{FuzzerStats, record_query, update_stat_for_round_completion};
 use crate::oracle::{
     NestedQueriesOracle, NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
 };
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
-use super::{FuzzerRunnerConfig, error_whitelist};
+use super::error_whitelist;
 
 pub async fn run_fuzzer(
-    config: FuzzerRunnerConfig,
+    config: RunnerConfig,
     // Needs mutex due to concurrent access from TUI
     fuzzer_stats: Arc<Mutex<FuzzerStats>>,
 ) -> Result<()> {
     info!("Starting fuzzer with seed: {}", config.seed);
 
     let ctx = Arc::new(GlobalContext::new(
-        config.to_runner_config(),
+        config.clone(),
         crate::fuzz_context::RuntimeContext::default(),
     ));
 
@@ -45,7 +45,7 @@ pub async fn run_fuzzer(
             execute_oracle_test(&mut rng, &ctx, &fuzzer_stats, config.sample_interval_secs).await;
         }
 
-        complete_round(&fuzzer_stats);
+        update_stat_for_round_completion(&fuzzer_stats);
 
         // Reset DataFusion context to drop all tables before the next round
         if round < config.rounds - 1 {

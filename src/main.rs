@@ -4,8 +4,9 @@ use tracing::info;
 use tracing_subscriber::{EnvFilter, filter::LevelFilter, fmt, prelude::*};
 
 use datafusion_fuzzer::{
-    cli::{Cli, FuzzerRunnerConfig, TuiApp, init, restore, run_fuzzer},
+    cli::{Cli, TuiApp, init, restore, run_fuzzer},
     common::{Result, init_available_data_types},
+    fuzz_context::RunnerConfig,
     fuzz_runner::{FuzzerStats, create_fuzzer_stats, get_tui_stats},
 };
 
@@ -15,7 +16,7 @@ async fn main() -> Result<()> {
     init_available_data_types();
 
     let cli = Cli::parse();
-    let runner_config = FuzzerRunnerConfig::from_cli(&cli)?;
+    let runner_config = RunnerConfig::from_cli(&cli)?;
     let _log_guards = setup_logging(&runner_config)?;
     let fuzzer_stats = create_fuzzer_stats(runner_config.rounds);
 
@@ -50,7 +51,7 @@ struct LogGuards {
 /// - `logs/trace.log`: Contains all logs generated using the `info!` macro
 /// - `logs/error.log`: Contains logs specifically related to system under test
 /// bugs using the `error!` macro
-fn setup_logging(config: &FuzzerRunnerConfig) -> Result<LogGuards> {
+fn setup_logging(config: &RunnerConfig) -> Result<LogGuards> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let format = fmt::format()

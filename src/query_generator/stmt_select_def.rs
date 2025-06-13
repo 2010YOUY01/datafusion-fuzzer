@@ -240,9 +240,9 @@ impl SelectStatementBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::FuzzerRunnerConfig;
     use crate::common::init_available_data_types;
     use crate::datasource_generator::dataset_generator::DatasetGenerator;
+    use crate::fuzz_context::RunnerConfig;
     use crate::fuzz_context::{GlobalContext, RuntimeContext};
 
     #[test]
@@ -251,16 +251,13 @@ mod tests {
         init_available_data_types();
 
         // Create a config with max_table_count = 2
-        let config = FuzzerRunnerConfig {
+        let config = RunnerConfig {
             max_table_count: 2,
-            ..FuzzerRunnerConfig::default()
+            ..RunnerConfig::default()
         };
 
         let runtime_context = RuntimeContext::default();
-        let ctx = Arc::new(GlobalContext::new(
-            config.to_runner_config(),
-            runtime_context,
-        ));
+        let ctx = Arc::new(GlobalContext::new(config, runtime_context));
 
         // Generate some test tables
         let mut dataset_generator = DatasetGenerator::new(1234, Arc::clone(&ctx));
