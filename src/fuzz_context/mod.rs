@@ -3,7 +3,7 @@ pub mod ctx_observability;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{
-    Arc, RwLock,
+    Arc, Mutex, RwLock,
     atomic::{AtomicU32, Ordering},
 };
 
@@ -11,6 +11,7 @@ use datafusion::{common::HashMap, prelude::SessionContext};
 use serde::{Deserialize, Serialize};
 
 use crate::common::{LogicalTable, Result, fuzzer_err};
+use crate::fuzz_runner::FuzzerStats;
 
 /// Create a default DataFusion SessionContext with standard configuration
 /// This ensures consistency between initial creation and reset operations
@@ -21,20 +22,30 @@ fn default_df_session_context() -> Arc<SessionContext> {
 pub struct GlobalContext {
     pub runner_config: RunnerConfig,
     pub runtime_context: RuntimeContext,
+    pub fuzzer_stats: Arc<Mutex<FuzzerStats>>,
 }
 
 impl GlobalContext {
-    pub fn new(runner_config: RunnerConfig, runtime_context: RuntimeContext) -> Self {
+    pub fn new(
+        runner_config: RunnerConfig,
+        runtime_context: RuntimeContext,
+        fuzzer_stats: Arc<Mutex<FuzzerStats>>,
+    ) -> Self {
         Self {
             runner_config,
             runtime_context,
+            fuzzer_stats,
         }
     }
 
     pub fn default() -> Self {
+        let default_config = RunnerConfig::default();
+        let fuzzer_stats = Arc::new(Mutex::new(FuzzerStats::new(default_config.rounds)));
+
         Self {
-            runner_config: RunnerConfig::default(),
+            runner_config: default_config,
             runtime_context: RuntimeContext::default(),
+            fuzzer_stats,
         }
     }
 

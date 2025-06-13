@@ -6,7 +6,7 @@ use tracing_subscriber::{EnvFilter, filter::LevelFilter, fmt, prelude::*};
 use datafusion_fuzzer::{
     cli::{Cli, TuiApp, init, restore, run_fuzzer},
     common::{Result, init_available_data_types},
-    fuzz_context::RunnerConfig,
+    fuzz_context::{GlobalContext, RunnerConfig, RuntimeContext},
     fuzz_runner::{FuzzerStats, create_fuzzer_stats, get_tui_stats},
 };
 
@@ -18,21 +18,28 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let runner_config = RunnerConfig::from_cli(&cli)?;
     let _log_guards = setup_logging(&runner_config)?;
+
+    // Create global context with all state
     let fuzzer_stats = create_fuzzer_stats(runner_config.rounds);
+    let global_context = Arc::new(GlobalContext::new(
+        runner_config.clone(),
+        RuntimeContext::default(),
+        fuzzer_stats,
+    ));
 
     // Spawn TUI in a separate thread (if enabled)
     if runner_config.enable_tui {
-        let tui_stats = Arc::clone(&fuzzer_stats);
+        let tui_context = Arc::clone(&global_context);
         tokio::spawn(async move {
             let mut terminal = init();
-            let _ = TuiApp::new(tui_stats).run(&mut terminal);
+            let _ = TuiApp::new(Arc::clone(&tui_context.fuzzer_stats)).run(&mut terminal);
             restore();
         });
     }
 
-    run_fuzzer(runner_config, Arc::clone(&fuzzer_stats)).await?;
+    run_fuzzer(global_context.clone()).await?;
 
-    print_final_stats(&fuzzer_stats);
+    print_final_stats(&global_context.fuzzer_stats);
 
     Ok(())
 }
