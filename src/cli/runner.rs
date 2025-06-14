@@ -8,10 +8,8 @@ use tracing::{error, info, warn};
 use crate::common::{LogicalTable, LogicalTableType, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
-use crate::fuzz_runner::{record_query, update_stat_for_round_completion};
-use crate::oracle::{
-    NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
-};
+use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
+use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::error_whitelist;
@@ -280,6 +278,8 @@ async fn execute_single_query(
     query_context: Arc<QueryContext>,
     ctx: &Arc<GlobalContext>,
 ) -> Result<Vec<RecordBatch>> {
+    let start_time = Instant::now();
+
     let result: Result<Vec<RecordBatch>> = async {
         query_context
             .context
@@ -291,6 +291,8 @@ async fn execute_single_query(
             .map_err(|e| crate::common::fuzzer_err(&format!("Query execution failed: {}", e)))
     }
     .await;
+
+    let execution_time = start_time.elapsed();
 
     // Check if error is whitelisted using the dedicated error_whitelist module
     if let Err(ref e) = result {
@@ -304,10 +306,11 @@ async fn execute_single_query(
         }
     }
 
-    record_query(
+    record_query_with_time(
         &ctx.fuzzer_stats,
         &query_context.query,
         result.is_ok(),
+        execution_time.into(),
         ctx.runner_config.sample_interval_secs,
     );
     result
@@ -319,7 +322,7 @@ mod tests {
     use crate::common::init_available_data_types;
     use crate::fuzz_context::{GlobalContext, RunnerConfig, RuntimeContext};
     use crate::fuzz_runner::FuzzerStats;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc as StdArc, Mutex as StdMutex};
 
     /// Test that ensures the fuzzer produces deterministic results when run with the same seed
     #[tokio::test]
@@ -352,7 +355,7 @@ mod tests {
 
             // Create fresh context for each run
             let runtime_context = RuntimeContext::default();
-            let fuzzer_stats = Arc::new(Mutex::new(FuzzerStats::new(config.rounds)));
+            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new(config.rounds)));
             let ctx = Arc::new(GlobalContext::new(
                 config.clone(),
                 runtime_context,
@@ -437,7 +440,7 @@ mod tests {
             };
 
             let runtime_context = RuntimeContext::default();
-            let fuzzer_stats = Arc::new(Mutex::new(FuzzerStats::new(config.rounds)));
+            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new(config.rounds)));
             let ctx = Arc::new(GlobalContext::new(config, runtime_context, fuzzer_stats));
 
             let (queries, _) = run_fuzzer_and_capture_results(ctx).await;
@@ -489,8 +492,6 @@ mod tests {
 
     /// Helper function that runs the fuzzer and captures generated queries and table names
     async fn run_fuzzer_and_capture_results(ctx: Arc<GlobalContext>) -> (Vec<String>, Vec<String>) {
-        use std::sync::{Arc as StdArc, Mutex as StdMutex};
-
         // Use interior mutability to capture results during execution
         let captured_queries = StdArc::new(StdMutex::new(Vec::new()));
         let captured_table_names = StdArc::new(StdMutex::new(Vec::new()));

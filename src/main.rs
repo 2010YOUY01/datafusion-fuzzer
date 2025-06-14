@@ -189,6 +189,24 @@ fn print_final_stats(fuzzer_stats: &Arc<std::sync::Mutex<FuzzerStats>>) {
         println!("  • Total Runtime: {:.2}s", seconds);
     }
 
+    // Display query runtime statistics if available
+    if let Some(ref runtime_stats) = stats.query_runtime_stats {
+        println!("\n⏱️  Query Runtime Statistics:");
+        println!("  • Average: {:.2}ms", runtime_stats.avg_ms);
+        println!("  • Fastest: {:.2}ms", runtime_stats.fastest_ms);
+        println!("  • Slowest: {:.2}ms", runtime_stats.slowest_ms);
+        println!("  • 90th percentile: {:.2}ms", runtime_stats.p90_ms);
+        println!("  • 99th percentile: {:.2}ms", runtime_stats.p99_ms);
+
+        // Display the slowest query
+        println!("\n🐌 Slowest Query ({:.2}ms):", runtime_stats.slowest_ms);
+        println!("{}", "-".repeat(40));
+        for line in runtime_stats.slowest_query.lines() {
+            println!("  {}", line);
+        }
+        println!("{}", "-".repeat(40));
+    }
+
     if !stats.recent_query.is_empty() {
         println!("\n🔍 Most Recent Query:");
         println!("{}", "-".repeat(40));
