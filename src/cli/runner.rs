@@ -10,7 +10,7 @@ use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query, update_stat_for_round_completion};
 use crate::oracle::{
-    NestedQueriesOracle, NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
+    NoCrashOracle, Oracle, QueryContext, QueryExecutionResult,
 };
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
