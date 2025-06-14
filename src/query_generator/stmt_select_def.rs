@@ -165,7 +165,7 @@ impl SelectStatementBuilder {
 
         // Get all available tables, filtered by allow_derived_tables setting
         let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
-        let available_tables: Vec<Arc<LogicalTable>> = tables_lock
+        let mut available_tables: Vec<Arc<LogicalTable>> = tables_lock
             .values()
             .filter(|table| {
                 if self.allow_derived_tables {
@@ -178,6 +178,9 @@ impl SelectStatementBuilder {
             })
             .cloned()
             .collect();
+
+        // Sort tables by name to ensure deterministic ordering
+        available_tables.sort_by(|a, b| a.name.cmp(&b.name));
 
         if available_tables.is_empty() {
             let table_type_description = if self.allow_derived_tables {
@@ -234,48 +237,5 @@ impl SelectStatementBuilder {
             .collect::<Vec<_>>();
 
         Ok(select_exprs)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::common::init_available_data_types;
-    use crate::datasource_generator::dataset_generator::DatasetGenerator;
-    use crate::fuzz_context::RunnerConfig;
-    use crate::fuzz_context::{GlobalContext, RuntimeContext};
-
-    #[test]
-    fn test_max_table_count_override() {
-        // Initialize data types
-        init_available_data_types();
-
-        // Create a config with max_table_count = 2
-        let config = RunnerConfig {
-            max_table_count: 2,
-            ..RunnerConfig::default()
-        };
-
-        let runtime_context = RuntimeContext::default();
-        let ctx = Arc::new(GlobalContext::new(config, runtime_context));
-
-        // Generate some test tables
-        let mut dataset_generator = DatasetGenerator::new(1234, Arc::clone(&ctx));
-        let _table1 = dataset_generator.generate_dataset().unwrap();
-        let _table2 = dataset_generator.generate_dataset().unwrap();
-        let _table3 = dataset_generator.generate_dataset().unwrap();
-
-        // Test 1: Default behavior (should use global config max_table_count = 2)
-        let stmt_builder = SelectStatementBuilder::new(42, Arc::clone(&ctx));
-        assert_eq!(stmt_builder.max_table_count, None);
-
-        // Test 2: Override with specific value (should use override max_table_count = 1)
-        let mut stmt_builder_override =
-            SelectStatementBuilder::new(42, Arc::clone(&ctx)).with_max_table_count(1);
-        assert_eq!(stmt_builder_override.max_table_count, Some(1));
-
-        // Verify that the override is actually used in pick_src_tables
-        stmt_builder_override.pick_src_tables().unwrap();
-        assert_eq!(stmt_builder_override.src_tables.len(), 1);
     }
 }

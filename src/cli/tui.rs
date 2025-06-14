@@ -79,6 +79,7 @@ impl Widget for &TuiApp {
             .title(title.centered())
             .border_set(border::THICK);
 
+        
         let stats = get_tui_stats(&self.fuzzer_stats);
 
         // Create the basic stats text

@@ -264,6 +264,11 @@ impl RuntimeContext {
         )
     }
 
+    /// Reset the table counter to 0 for deterministic naming
+    pub fn reset_table_counter(&self) {
+        self.current_table_idx.store(0, Ordering::Relaxed);
+    }
+
     /// Get a clone of the current DataFusion SessionContext
     pub fn get_session_context(&self) -> Arc<SessionContext> {
         let df_ctx = self.df_ctx.read().unwrap();

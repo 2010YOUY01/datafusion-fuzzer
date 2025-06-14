@@ -100,13 +100,3 @@ impl Oracle for NestedQueriesOracle {
         Ok(report)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    
-
-    #[test]
-    fn test_nested_queries_oracle_creation() {
-        // TODO: Add tests for NestedQueriesOracle creation and basic functionality
-    }
-}
