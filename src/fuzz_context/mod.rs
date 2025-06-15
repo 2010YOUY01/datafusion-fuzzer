@@ -221,7 +221,7 @@ impl RunnerConfig {
             seed: 42,
             rounds: 3,
             queries_per_round: 10,
-            timeout_seconds: 30,
+            timeout_seconds: 2,
             log_path: Some(PathBuf::from("logs")),
             display_logs: false,
             enable_tui: true,

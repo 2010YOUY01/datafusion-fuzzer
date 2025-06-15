@@ -7,7 +7,7 @@ use datafusion_fuzzer::{
     cli::{Cli, TuiApp, init, restore, run_fuzzer},
     common::{Result, init_available_data_types},
     fuzz_context::{GlobalContext, RunnerConfig, RuntimeContext},
-    fuzz_runner::{FuzzerStats, create_fuzzer_stats, get_tui_stats},
+    fuzz_runner::{FuzzerStats, create_fuzzer_stats_with_timeout, get_tui_stats},
 };
 
 #[tokio::main]
@@ -20,7 +20,8 @@ async fn main() -> Result<()> {
     let _log_guards = setup_logging(&runner_config)?;
 
     // Create global context with all state
-    let fuzzer_stats = create_fuzzer_stats(runner_config.rounds);
+    let fuzzer_stats =
+        create_fuzzer_stats_with_timeout(runner_config.rounds, runner_config.timeout_seconds);
     let global_context = Arc::new(GlobalContext::new(
         runner_config.clone(),
         RuntimeContext::default(),
@@ -175,6 +176,15 @@ fn print_final_stats(fuzzer_stats: &Arc<std::sync::Mutex<FuzzerStats>>) {
     println!("  • Queries Executed: {}", stats.queries_executed);
     println!("  • Query Success Rate: {:.2}%", stats.success_rate);
     println!("  • Queries Per Second: {:.2}", stats.queries_per_second);
+    println!(
+        "  • Slow Queries: {} ({:.2}%)",
+        stats.queries_slow,
+        if stats.queries_executed > 0 {
+            (stats.queries_slow as f64 / stats.queries_executed as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
 
     let total_secs = stats.running_time_secs;
     let hours = (total_secs / 3600.0) as u64;

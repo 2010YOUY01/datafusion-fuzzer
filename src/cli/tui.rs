@@ -79,7 +79,6 @@ impl Widget for &TuiApp {
             .title(title.centered())
             .border_set(border::THICK);
 
-        
         let stats = get_tui_stats(&self.fuzzer_stats);
 
         // Create the basic stats text
@@ -95,6 +94,19 @@ impl Widget for &TuiApp {
             Line::from(vec![
                 "Queries Success Rate: ".into(),
                 stats.success_rate.to_string().yellow(),
+            ]),
+            Line::from(vec![
+                "Slow Queries: ".into(),
+                format!(
+                    "{} ({:.1}%)",
+                    stats.queries_slow,
+                    if stats.queries_executed > 0 {
+                        (stats.queries_slow as f64 / stats.queries_executed as f64) * 100.0
+                    } else {
+                        0.0
+                    }
+                )
+                .yellow(),
             ]),
             Line::from(vec![
                 "Queries Per Second: ".into(),

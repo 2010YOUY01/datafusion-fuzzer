@@ -3,6 +3,7 @@ use datafusion::common::instant::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{error, info, warn};
 
 use crate::common::{LogicalTable, LogicalTableType, Result};
@@ -271,6 +272,14 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
     }
 }
 
+/// Query execution result that tracks both the outcome and whether it timed out
+#[derive(Debug)]
+struct QueryExecutionOutcome {
+    result: Result<Vec<RecordBatch>>,
+    timed_out: bool,
+    execution_time: Duration,
+}
+
 /// We make sure error message is in 'whitelist'.
 /// Error consistency check can be done later: all query in the group should all succeed
 /// or all fail. (TODO: implement this)
@@ -278,24 +287,23 @@ async fn execute_single_query(
     query_context: Arc<QueryContext>,
     ctx: &Arc<GlobalContext>,
 ) -> Result<Vec<RecordBatch>> {
-    let start_time = Instant::now();
+    let timeout_duration = Duration::from_secs(ctx.runner_config.timeout_seconds);
 
-    let result: Result<Vec<RecordBatch>> = async {
-        query_context
-            .context
-            .sql(&query_context.query)
-            .await
-            .map_err(|e| crate::common::fuzzer_err(&format!("Query planning failed: {}", e)))?
-            .collect()
-            .await
-            .map_err(|e| crate::common::fuzzer_err(&format!("Query execution failed: {}", e)))
+    // Execute query with timeout tracking
+    let outcome = execute_query_with_timeout(&query_context, timeout_duration).await;
+
+    // Log timeout queries specifically
+    if outcome.timed_out {
+        warn!(
+            "Query timed out after {:.2}ms (timeout: {}s):\n{}",
+            outcome.execution_time.as_secs_f64() * 1000.0,
+            ctx.runner_config.timeout_seconds,
+            query_context.query
+        );
     }
-    .await;
-
-    let execution_time = start_time.elapsed();
 
     // Check if error is whitelisted using the dedicated error_whitelist module
-    if let Err(ref e) = result {
+    if let Err(ref e) = outcome.result {
         let error_msg = e.to_string();
         if !error_whitelist::is_error_whitelisted(&error_msg) {
             // Log non-whitelisted errors
@@ -309,11 +317,47 @@ async fn execute_single_query(
     record_query_with_time(
         &ctx.fuzzer_stats,
         &query_context.query,
-        result.is_ok(),
-        execution_time.into(),
+        outcome.result.is_ok(),
+        outcome.execution_time.into(),
         ctx.runner_config.sample_interval_secs,
     );
-    result
+
+    outcome.result
+}
+
+/// Execute a query with timeout detection, returning both result and timeout status
+async fn execute_query_with_timeout(
+    query_context: &QueryContext,
+    timeout_duration: Duration,
+) -> QueryExecutionOutcome {
+    let start_time = Instant::now();
+
+    let timeout_result = tokio::time::timeout(timeout_duration, async {
+        query_context
+            .context
+            .sql(&query_context.query)
+            .await
+            .map_err(|e| crate::common::fuzzer_err(&format!("Query planning failed: {}", e)))?
+            .collect()
+            .await
+            .map_err(|e| crate::common::fuzzer_err(&format!("Query execution failed: {}", e)))
+    })
+    .await;
+
+    let execution_time = start_time.elapsed();
+
+    match timeout_result {
+        Ok(result) => QueryExecutionOutcome {
+            result,
+            timed_out: false,
+            execution_time,
+        },
+        Err(_) => QueryExecutionOutcome {
+            result: Err(crate::common::fuzzer_err("Query execution timed out")),
+            timed_out: true,
+            execution_time,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -335,7 +379,7 @@ mod tests {
             seed,
             rounds: 2,
             queries_per_round: 3,
-            timeout_seconds: 30,
+            timeout_seconds: 2,
             log_path: None, // Disable file logging for tests
             display_logs: false,
             enable_tui: false,
@@ -355,7 +399,10 @@ mod tests {
 
             // Create fresh context for each run
             let runtime_context = RuntimeContext::default();
-            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new(config.rounds)));
+            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new_with_timeout(
+                config.rounds,
+                config.timeout_seconds as f64 * 1000.0,
+            )));
             let ctx = Arc::new(GlobalContext::new(
                 config.clone(),
                 runtime_context,
@@ -419,7 +466,7 @@ mod tests {
             seed: 42, // Default seed, will be overridden
             rounds: 1,
             queries_per_round: 2,
-            timeout_seconds: 30,
+            timeout_seconds: 2,
             log_path: None,
             display_logs: false,
             enable_tui: false,
@@ -440,7 +487,10 @@ mod tests {
             };
 
             let runtime_context = RuntimeContext::default();
-            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new(config.rounds)));
+            let fuzzer_stats = Arc::new(StdMutex::new(FuzzerStats::new_with_timeout(
+                config.rounds,
+                config.timeout_seconds as f64 * 1000.0,
+            )));
             let ctx = Arc::new(GlobalContext::new(config, runtime_context, fuzzer_stats));
 
             let (queries, _) = run_fuzzer_and_capture_results(ctx).await;

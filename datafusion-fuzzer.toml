@@ -10,7 +10,7 @@ rounds = 3
 queries_per_round = 10
 
 # Query timeout in seconds
-timeout_seconds = 30
+timeout_seconds = 2
 
 # Path to log directory
 log_path = "logs"

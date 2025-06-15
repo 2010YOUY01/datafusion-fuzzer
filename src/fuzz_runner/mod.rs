@@ -99,6 +99,7 @@ pub struct FuzzerStats {
     pub total_rounds: u32,
     pub queries_executed: u64,
     pub queries_succeeded: u64,
+    pub queries_slow: u64,
 
     // Timers
     pub start_time: Instant,
@@ -109,6 +110,9 @@ pub struct FuzzerStats {
 
     // Query execution records for runtime statistics
     query_execution_records: Vec<QueryExecutionRecord>,
+
+    // Slow query tracking
+    pub slow_query_threshold_ms: f64,
 }
 
 // Struct to hold formatted stats for display in a TUI
@@ -118,6 +122,7 @@ pub struct TuiStats {
     pub total_rounds: u32,
     pub queries_executed: u64,
     pub queries_succeeded: u64,
+    pub queries_slow: u64,
     pub success_rate: f64,
     pub queries_per_second: f64,
     pub running_time_secs: f64,
@@ -128,15 +133,22 @@ pub struct TuiStats {
 impl FuzzerStats {
     /// Create new FuzzerStats with the specified total rounds
     pub fn new(total_rounds: u32) -> Self {
+        Self::new_with_timeout(total_rounds, 1000.0)
+    }
+
+    /// Create new FuzzerStats with the specified total rounds and slow query threshold
+    pub fn new_with_timeout(total_rounds: u32, slow_query_threshold_ms: f64) -> Self {
         Self {
             rounds_completed: 0,
             total_rounds,
             queries_executed: 0,
             queries_succeeded: 0,
+            queries_slow: 0,
             start_time: Instant::now(),
             last_sample_time: Instant::now(),
             recent_query: String::new(),
             query_execution_records: Vec::new(),
+            slow_query_threshold_ms,
         }
     }
 
@@ -199,6 +211,14 @@ impl FuzzerStats {
             query: query.to_string(),
             execution_time,
         });
+
+        // Check if this is a slow query (queries that took close to or exceed the timeout)
+        let execution_time_ms = execution_time.as_secs_f64() * 1000.0;
+        // Consider a query slow if it took 90% or more of the timeout threshold
+        let slow_threshold = self.slow_query_threshold_ms * 0.9;
+        if execution_time_ms >= slow_threshold {
+            self.queries_slow += 1;
+        }
     }
 
     /// Complete a round of fuzzing
@@ -228,6 +248,7 @@ impl FuzzerStats {
             total_rounds: self.total_rounds,
             queries_executed: self.queries_executed,
             queries_succeeded: self.queries_succeeded,
+            queries_slow: self.queries_slow,
             success_rate,
             queries_per_second: qps,
             running_time_secs: elapsed_secs,
@@ -240,6 +261,18 @@ impl FuzzerStats {
 /// Helper function to create a new shared FuzzerStats instance
 pub fn create_fuzzer_stats(total_rounds: u32) -> Arc<Mutex<FuzzerStats>> {
     Arc::new(Mutex::new(FuzzerStats::new(total_rounds)))
+}
+
+/// Helper function to create a new shared FuzzerStats instance with timeout configuration
+pub fn create_fuzzer_stats_with_timeout(
+    total_rounds: u32,
+    timeout_seconds: u64,
+) -> Arc<Mutex<FuzzerStats>> {
+    let slow_query_threshold_ms = (timeout_seconds as f64) * 1000.0;
+    Arc::new(Mutex::new(FuzzerStats::new_with_timeout(
+        total_rounds,
+        slow_query_threshold_ms,
+    )))
 }
 
 /// Helper function to record a query execution
