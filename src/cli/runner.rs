@@ -48,16 +48,7 @@ pub async fn run_fuzzer(ctx: Arc<GlobalContext>) -> Result<()> {
             let query_seed = query_base_seed.wrapping_add(i as u64);
 
             // >>> CORE LOGIC <<<
-            let start_time = Instant::now();
             execute_oracle_test(query_seed, &ctx).await;
-            let execution_time = start_time.elapsed();
-
-            info!(
-                "Oracle test {}/{} completed in {:.2}ms",
-                i + 1,
-                ctx.runner_config.queries_per_round,
-                execution_time.as_secs_f64() * 1000.0
-            );
         }
 
         update_stat_for_round_completion(&ctx.fuzzer_stats);

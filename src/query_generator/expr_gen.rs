@@ -177,6 +177,16 @@ impl ExprGenerator {
                 Operator::Modulo,
                 Box::new(child_exprs[1].clone()),
             )),
+            BaseExpr::And => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(child_exprs[0].clone()),
+                Operator::And,
+                Box::new(child_exprs[1].clone()),
+            )),
+            BaseExpr::Or => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(child_exprs[0].clone()),
+                Operator::Or,
+                Box::new(child_exprs[1].clone()),
+            )),
         }
     }
 }

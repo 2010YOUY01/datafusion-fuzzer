@@ -3,7 +3,7 @@ use rand::{Rng, rngs::StdRng};
 use std::sync::{Arc, LazyLock};
 use strum::{EnumIter, IntoEnumIterator};
 
-use super::expr_impl::{AddExpr, DivExpr, ModExpr, MulExpr, SubExpr};
+use super::expr_impl::{AddExpr, AndExpr, DivExpr, ModExpr, MulExpr, OrExpr, SubExpr};
 
 /// A wrapper of datafusion expression
 pub struct ExprWrapper {
@@ -74,6 +74,8 @@ pub enum BaseExpr {
     Mul,
     Div,
     Mod,
+    And,
+    Or,
 }
 
 impl BaseExpr {
@@ -84,6 +86,8 @@ impl BaseExpr {
             BaseExpr::Mul => Box::new(MulExpr),
             BaseExpr::Div => Box::new(DivExpr),
             BaseExpr::Mod => Box::new(ModExpr),
+            BaseExpr::And => Box::new(AndExpr),
+            BaseExpr::Or => Box::new(OrExpr),
         }
     }
 }
