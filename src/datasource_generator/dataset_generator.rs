@@ -5,7 +5,7 @@ use rand::Rng;
 use rand::rngs::StdRng;
 use tracing::info;
 
-use crate::common::{FuzzerDataType, LogicalTable, get_available_data_types};
+use crate::common::{FuzzerDataType, LogicalColumn, LogicalTable, get_available_data_types};
 use crate::{common::rng::rng_from_seed, fuzz_context::GlobalContext};
 
 pub struct DatasetGenerator {
@@ -22,7 +22,7 @@ impl DatasetGenerator {
     }
 
     // TODO(coverage): support NULLs in data generation
-    pub fn generate_dataset(&mut self) -> Result<LogicalTable> {
+    pub async fn generate_dataset(&mut self) -> Result<LogicalTable> {
         // ==== Generate schema ====
         let table_name = self.ctx.runtime_context.next_table_name(); // t1, t2, ...
         let cfg_max_col_count = self.ctx.runner_config.max_column_count;
@@ -83,10 +83,7 @@ impl DatasetGenerator {
         let df_ctx = self.ctx.runtime_context.get_session_context();
 
         // Execute CREATE TABLE
-        let create_result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(async { df_ctx.sql(&create_table_sql).await?.collect().await })
-        });
+        let create_result = df_ctx.sql(&create_table_sql).await?.collect().await;
 
         if let Err(e) = create_result {
             return Err(datafusion::error::DataFusionError::External(
@@ -96,10 +93,7 @@ impl DatasetGenerator {
 
         // Execute INSERT statements
         for insert_sql in &insert_statements {
-            let insert_result = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current()
-                    .block_on(async { df_ctx.sql(insert_sql).await?.collect().await })
-            });
+            let insert_result = df_ctx.sql(insert_sql).await?.collect().await;
 
             if let Err(e) = insert_result {
                 return Err(datafusion::error::DataFusionError::External(
@@ -109,7 +103,20 @@ impl DatasetGenerator {
         }
 
         // ==== Register table in fuzzer context ====
-        let logical_table = LogicalTable::new(table_name.clone());
+        let logical_columns: Vec<LogicalColumn> = column_fuzzer_types
+            .iter()
+            .enumerate()
+            .map(|(i, fuzzer_type)| {
+                let column_name =
+                    format!("col_{table_name}_{}_{}", i + 1, fuzzer_type.display_name());
+                LogicalColumn {
+                    name: column_name,
+                    data_type: fuzzer_type.clone(),
+                }
+            })
+            .collect();
+
+        let logical_table = LogicalTable::with_columns(table_name.clone(), logical_columns);
         self.ctx
             .runtime_context
             .registered_tables

@@ -192,6 +192,13 @@ pub fn get_numeric_data_types() -> Vec<FuzzerDataType> {
 #[derive(Debug, Clone)]
 pub struct LogicalTable {
     pub name: String,
+    pub columns: Vec<LogicalColumn>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LogicalColumn {
+    pub name: String,
+    pub data_type: FuzzerDataType,
 }
 
 #[derive(Debug, Clone)]
@@ -203,7 +210,14 @@ pub enum LogicalTableType {
 
 impl LogicalTable {
     pub fn new(name: String) -> Self {
-        Self { name }
+        Self {
+            name,
+            columns: Vec::new(),
+        }
+    }
+
+    pub fn with_columns(name: String, columns: Vec<LogicalColumn>) -> Self {
+        Self { name, columns }
     }
 }
 

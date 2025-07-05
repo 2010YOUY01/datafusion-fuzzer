@@ -78,7 +78,7 @@ async fn generate_datasets_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Res
         let table_seed = seed.wrapping_add((i as u64) * 100);
         let mut dataset_generator = DatasetGenerator::new(table_seed, Arc::clone(ctx));
 
-        match dataset_generator.generate_dataset() {
+        match dataset_generator.generate_dataset().await {
             Ok(table) => info!("Generated table: {}", table.name),
             Err(e) => error!("Failed to generate table: {}", e),
         }
@@ -554,7 +554,7 @@ mod tests {
                     let table_seed = dataset_seed.wrapping_add((i as u64) * 100);
                     let mut dataset_generator = DatasetGenerator::new(table_seed, Arc::clone(&ctx));
 
-                    if let Ok(table) = dataset_generator.generate_dataset() {
+                    if let Ok(table) = dataset_generator.generate_dataset().await {
                         captured_table_names.lock().unwrap().push(table.name);
                     }
                 }

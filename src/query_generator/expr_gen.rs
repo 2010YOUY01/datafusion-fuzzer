@@ -45,31 +45,18 @@ impl ExprGenerator {
     }
 
     /// Helper function to convert a vector of LogicalTable to a vector of Column references
-    pub fn tables_to_columns(tables: &[LogicalTable], ctx: &Arc<GlobalContext>) -> Vec<Column> {
+    pub fn tables_to_columns(tables: &[LogicalTable], _ctx: &Arc<GlobalContext>) -> Vec<Column> {
         let mut columns = Vec::new();
-        let df_ctx = ctx.runtime_context.get_session_context();
 
         for table in tables {
             let table_ref = TableReference::bare(table.name.clone());
 
-            // Query DataFusion to get table schema
-            if let Ok(table_provider) = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    df_ctx
-                        .catalog("datafusion")
-                        .unwrap()
-                        .schema("public")
-                        .unwrap()
-                        .table(&table.name)
-                        .await
-                })
-            }) {
-                if let Some(provider) = table_provider {
-                    let schema = provider.schema();
-                    for field in schema.fields() {
-                        columns.push(Column::new(Some(table_ref.clone()), field.name()));
-                    }
-                }
+            // Use the actual column information from the table
+            for logical_column in &table.columns {
+                columns.push(Column::new(
+                    Some(table_ref.clone()),
+                    logical_column.name.clone(),
+                ));
             }
         }
         columns
@@ -142,33 +129,26 @@ impl ExprGenerator {
     }
 
     fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {
-        // Query DataFusion directly for table schema information
+        // Use the actual column information from the tables
         let mut matching_columns = Vec::new();
-        let df_ctx = self.ctx.runtime_context.get_session_context();
 
         for column in self.src_columns.as_ref() {
-            // For each column, find its type by querying DataFusion
-            if let Some(table_name) = &column.relation {
-                let table_name_str = table_name.to_string();
+            // Try to find the table this column belongs to
+            if let Some(table_ref) = &column.relation {
+                let table_name = table_ref.to_string();
 
-                // Query DataFusion to get table schema
-                if let Ok(table_provider) = tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(async {
-                        df_ctx
-                            .catalog("datafusion")
-                            .unwrap()
-                            .schema("public")
-                            .unwrap()
-                            .table(&table_name_str)
-                            .await
-                    })
-                }) {
-                    if let Some(provider) = table_provider {
-                        let schema = provider.schema();
-                        if let Some(field) = schema.field_with_name(&column.name).ok() {
-                            if field.data_type() == &target_type {
+                // Get the table from the fuzzer context
+                let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
+                if let Some(logical_table) = tables_lock.get(&table_name) {
+                    // Find the matching logical column
+                    for logical_column in &logical_table.columns {
+                        if logical_column.name == column.name {
+                            // Check if the data type matches
+                            let column_df_type = logical_column.data_type.to_datafusion_type();
+                            if column_df_type == target_type {
                                 matching_columns.push(column.clone());
                             }
+                            break;
                         }
                     }
                 }
