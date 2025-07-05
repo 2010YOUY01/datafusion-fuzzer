@@ -3,6 +3,18 @@ use rand::{Rng, rngs::StdRng};
 
 use crate::common::FuzzerDataType;
 
+/// Safely calculate 10^scale, preventing overflow
+fn safe_power_of_10(scale: i8) -> i128 {
+    // The maximum power of 10 that fits in i128 is approximately 10^38
+    // For safety, we limit to 10^30 to avoid overflow in calculations
+    let safe_scale = std::cmp::min(scale as u32, 30);
+    match safe_scale {
+        0 => 1,
+        1..=30 => 10_i128.pow(safe_scale),
+        _ => 10_i128.pow(30), // Fallback to 10^30 for any edge cases
+    }
+}
+
 // TODO(coverage): now only small numbers are geenrated to avoid overflows. Change to
 // large edge cases (e.g. max/min values) in the future.
 pub fn generate_scalar_literal(
@@ -40,32 +52,26 @@ pub fn generate_scalar_literal(
             let value = rng.random_range(-100.0..=100.0);
             ScalarValue::Float64(Some(value))
         }
-        FuzzerDataType::Decimal128 { precision, scale } => {
-            // Generate a decimal value that fits within the precision and scale
-            // Use smaller ranges to prevent overflow issues
-            let scale_factor = 10_i128.pow(*scale as u32);
+        FuzzerDataType::Decimal { precision, scale } => {
+            // Generate very simple, safe decimal values to avoid casting issues
+            // Use a much more conservative approach
 
-            // Use a much smaller range to avoid overflow and keep values manageable
-            // Instead of using full precision, limit to smaller safe ranges
-            let safe_range = match *precision {
-                1..=10 => 1000,    // For small precision, use range -1000 to 1000
-                11..=20 => 10000,  // For medium precision, use range -10000 to 10000
-                21..=30 => 100000, // For larger precision, use range -100000 to 100000
-                _ => 1000000,      // For max precision, use range -1000000 to 1000000
-            };
+            // For casting compatibility, use very small values
+            // Generate a simple integer value between -100 and 100
+            let simple_value = rng.random_range(-100..=100);
 
-            let max_value = safe_range;
-            let min_value = -max_value;
+            // Apply scale factor to create a proper decimal value
+            let scale_factor = safe_power_of_10(*scale);
+            let decimal_value = simple_value * scale_factor;
 
-            let integral_part = rng.random_range(min_value..=max_value);
-            let fractional_part = if *scale > 0 {
-                rng.random_range(0..scale_factor)
+            // Use appropriate ScalarValue variant based on precision
+            if *precision <= 38 {
+                ScalarValue::Decimal128(Some(decimal_value), *precision, *scale)
             } else {
-                0
-            };
-
-            let decimal_value = integral_part * scale_factor + fractional_part;
-            ScalarValue::Decimal128(Some(decimal_value), *precision, *scale)
+                use datafusion::arrow::datatypes::i256;
+                let decimal_value_256 = i256::from_i128(decimal_value);
+                ScalarValue::Decimal256(Some(decimal_value_256), *precision, *scale)
+            }
         }
     }
 }

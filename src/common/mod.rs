@@ -26,7 +26,9 @@ pub enum FuzzerDataType {
     Float32,
     Float64,
     Boolean,
-    Decimal128 { precision: u8, scale: i8 },
+    // When precision is [1, 38], the physical type in DF is Decimal128.
+    // When precision is [39, 76], the physical type in DF is Decimal256.
+    Decimal { precision: u8, scale: i8 },
 }
 
 impl FuzzerDataType {
@@ -40,8 +42,15 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => DataType::Float32,
             FuzzerDataType::Float64 => DataType::Float64,
             FuzzerDataType::Boolean => DataType::Boolean,
-            FuzzerDataType::Decimal128 { precision, scale } => {
-                DataType::Decimal128(*precision, *scale)
+            FuzzerDataType::Decimal { precision, scale } => {
+                // DataFusion automatically chooses the best internal representation:
+                // - Decimal128 for precision 1-38
+                // - Decimal256 for precision 39-76
+                if *precision <= 38 {
+                    DataType::Decimal128(*precision, *scale)
+                } else {
+                    DataType::Decimal256(*precision, *scale)
+                }
             }
         }
     }
@@ -56,7 +65,13 @@ impl FuzzerDataType {
             DataType::Float32 => Some(FuzzerDataType::Float32),
             DataType::Float64 => Some(FuzzerDataType::Float64),
             DataType::Boolean => Some(FuzzerDataType::Boolean),
-            DataType::Decimal128(precision, scale) => Some(FuzzerDataType::Decimal128 {
+            // Handle both Decimal128 and Decimal256 as the same fuzzer type
+            // DataFusion automatically chooses the appropriate internal representation
+            DataType::Decimal128(precision, scale) => Some(FuzzerDataType::Decimal {
+                precision: *precision,
+                scale: *scale,
+            }),
+            DataType::Decimal256(precision, scale) => Some(FuzzerDataType::Decimal {
                 precision: *precision,
                 scale: *scale,
             }),
@@ -74,7 +89,7 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => "float32",
             FuzzerDataType::Float64 => "float64",
             FuzzerDataType::Boolean => "boolean",
-            FuzzerDataType::Decimal128 { .. } => "decimal128",
+            FuzzerDataType::Decimal { .. } => "decimal128",
         }
     }
 
@@ -86,7 +101,7 @@ impl FuzzerDataType {
             | FuzzerDataType::UInt64
             | FuzzerDataType::Float32
             | FuzzerDataType::Float64
-            | FuzzerDataType::Decimal128 { .. } => true,
+            | FuzzerDataType::Decimal { .. } => true,
             FuzzerDataType::Boolean => false,
         }
     }
@@ -94,12 +109,12 @@ impl FuzzerDataType {
     /// Create a random Decimal128 type with valid precision and scale
     pub fn random_decimal128<R: rand::Rng>(rng: &mut R) -> Self {
         // Use reasonable precision and scale values for testing
-        // Precision: 1-38 (maximum for Decimal128)
-        let precision = rng.random_range(1..=38);
+        // Precision: 1-76 (maximum for Decimal256, DataFusion auto-chooses implementation)
+        let precision = rng.random_range(1..=76);
         // Scale: 0 to precision (can't exceed precision)
         let scale = rng.random_range(0..=precision as i8);
 
-        FuzzerDataType::Decimal128 { precision, scale }
+        FuzzerDataType::Decimal { precision, scale }
     }
 }
 
@@ -107,6 +122,8 @@ impl FuzzerDataType {
 static AVAILABLE_DATA_TYPES: OnceLock<Vec<FuzzerDataType>> = OnceLock::new();
 
 /// Initialize the available data types (called once)
+// TODO(known-bug): Generate Decimal 256 after the upstream issue addressed
+// https://github.com/apache/datafusion/issues/16689
 pub fn init_available_data_types() {
     AVAILABLE_DATA_TYPES.get_or_init(|| {
         vec![
@@ -117,19 +134,22 @@ pub fn init_available_data_types() {
             FuzzerDataType::Float32,
             FuzzerDataType::Float64,
             FuzzerDataType::Boolean,
-            // Add some common decimal types for testing
-            FuzzerDataType::Decimal128 {
+            // Add decimal types with various precisions for testing
+            // These will automatically use Decimal128 or Decimal256 internally
+            FuzzerDataType::Decimal {
                 precision: 10,
                 scale: 2,
-            }, // Common currency format
-            FuzzerDataType::Decimal128 {
+            }, // Common currency format (Decimal128)
+            FuzzerDataType::Decimal {
                 precision: 18,
                 scale: 4,
-            }, // Higher precision
-            FuzzerDataType::Decimal128 {
+            }, // Higher precision (Decimal128)
+            FuzzerDataType::Decimal {
                 precision: 38,
                 scale: 10,
-            }, // Max precision with scale
+            }, // Max Decimal128 precision
+               // Note: Decimal256 types (precision > 38) currently cause casting issues in DataFusion
+               // They will be re-enabled once the upstream casting bugs are fixed
         ]
     });
 }

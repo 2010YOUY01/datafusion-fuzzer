@@ -28,6 +28,18 @@ impl DatasetGenerator {
         }
     }
 
+    /// Safely calculate 10^scale, preventing overflow
+    fn safe_power_of_10(scale: i8) -> i128 {
+        // The maximum power of 10 that fits in i128 is approximately 10^38
+        // For safety, we limit to 10^30 to avoid overflow in calculations
+        let safe_scale = std::cmp::min(scale as u32, 30);
+        match safe_scale {
+            0 => 1,
+            1..=30 => 10_i128.pow(safe_scale),
+            _ => 10_i128.pow(30), // Fallback to 10^30 for any edge cases
+        }
+    }
+
     pub fn generate_dataset(&mut self) -> Result<LogicalTable> {
         // ==== Generate schema ====
         // Generated schema for table 't1':
@@ -197,40 +209,94 @@ impl DatasetGenerator {
 
                 Ok(Arc::new(builder.finish()))
             }
-            FuzzerDataType::Decimal128 { precision, scale } => {
-                use datafusion::arrow::array::Decimal128Builder;
+            FuzzerDataType::Decimal { precision, scale } => {
+                // Use appropriate Builder based on precision
+                // DataFusion automatically chooses Decimal128 vs Decimal256 based on precision
+                if *precision <= 38 {
+                    use datafusion::arrow::array::Decimal128Builder;
 
-                let mut builder =
-                    Decimal128Builder::new().with_precision_and_scale(*precision, *scale)?;
-                for _ in 0..len {
-                    // Generate a decimal value that fits within the precision and scale
-                    // Use smaller ranges to prevent overflow issues
-                    let scale_factor = 10_i128.pow(*scale as u32);
+                    let mut builder =
+                        Decimal128Builder::new().with_precision_and_scale(*precision, *scale)?;
+                    for _ in 0..len {
+                        // Generate very simple, safe decimal values to avoid casting issues
+                        // Use a much more conservative approach
 
-                    // Use a much smaller range to avoid overflow and keep values manageable
-                    // Instead of using full precision, limit to smaller safe ranges
-                    let safe_range = match *precision {
-                        1..=10 => 1000,    // For small precision, use range -1000 to 1000
-                        11..=20 => 10000,  // For medium precision, use range -10000 to 10000
-                        21..=30 => 100000, // For larger precision, use range -100000 to 100000
-                        _ => 1000000,      // For max precision, use range -1000000 to 1000000
-                    };
+                        // For casting compatibility, use very small values
+                        // Generate a simple integer value between -100 and 100
+                        let simple_value = self.rng.random_range(-100..=100);
 
-                    let max_value = safe_range;
-                    let min_value = -max_value;
+                        // Apply scale factor to create a proper decimal value
+                        let scale_factor = Self::safe_power_of_10(*scale);
+                        let decimal_value = simple_value * scale_factor;
 
-                    let integral_part = self.rng.random_range(min_value..=max_value);
-                    let fractional_part = if *scale > 0 {
-                        self.rng.random_range(0..scale_factor)
-                    } else {
-                        0
-                    };
+                        builder.append_value(decimal_value);
+                    }
 
-                    let decimal_value = integral_part * scale_factor + fractional_part;
-                    builder.append_value(decimal_value);
+                    Ok(Arc::new(builder.finish()))
+                } else {
+                    use datafusion::arrow::array::Decimal256Builder;
+                    use datafusion::arrow::datatypes::i256;
+
+                    let mut builder =
+                        Decimal256Builder::new().with_precision_and_scale(*precision, *scale)?;
+                    for _ in 0..len {
+                        // Generate a decimal value that fits within the precision and scale
+                        // Be very conservative to avoid casting issues
+
+                        // Calculate the maximum value that fits in the precision
+                        // For precision P and scale S, max value is 10^(P-S) - 1
+                        let max_integral_digits = *precision as i32 - *scale as i32;
+
+                        let decimal_value = if max_integral_digits <= 0 {
+                            // Edge case: scale >= precision, only fractional part
+                            let fractional_part = if *scale > 0 {
+                                self.rng.random_range(0..Self::safe_power_of_10(*scale))
+                            } else {
+                                0
+                            };
+                            fractional_part
+                        } else {
+                            // Normal case: both integral and fractional parts
+                            let max_integral_value =
+                                Self::safe_power_of_10(max_integral_digits as i8) - 1;
+
+                            // Use even more conservative ranges to avoid casting issues
+                            let safe_integral_limit = std::cmp::min(max_integral_value, 1000);
+                            let integral_part = self
+                                .rng
+                                .random_range(-safe_integral_limit..=safe_integral_limit);
+
+                            let fractional_part = if *scale > 0 {
+                                self.rng.random_range(0..Self::safe_power_of_10(*scale))
+                            } else {
+                                0
+                            };
+
+                            // Combine integral and fractional parts
+                            let scale_factor = Self::safe_power_of_10(*scale);
+                            let decimal_value = integral_part * scale_factor + fractional_part;
+
+                            // Ensure the absolute value doesn't exceed the precision limit
+                            let max_total_value = Self::safe_power_of_10(*precision as i8) - 1;
+                            if decimal_value.abs() > max_total_value {
+                                // Clamp to safe range
+                                if decimal_value >= 0 {
+                                    std::cmp::min(decimal_value, max_total_value)
+                                } else {
+                                    std::cmp::max(decimal_value, -max_total_value)
+                                }
+                            } else {
+                                decimal_value
+                            }
+                        };
+
+                        // Convert i128 to i256 for Decimal256
+                        let decimal_value_256 = i256::from_i128(decimal_value);
+                        builder.append_value(decimal_value_256);
+                    }
+
+                    Ok(Arc::new(builder.finish()))
                 }
-
-                Ok(Arc::new(builder.finish()))
             }
         }
     }
