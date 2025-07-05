@@ -45,12 +45,31 @@ impl ExprGenerator {
     }
 
     /// Helper function to convert a vector of LogicalTable to a vector of Column references
-    pub fn tables_to_columns(tables: &[LogicalTable]) -> Vec<Column> {
+    pub fn tables_to_columns(tables: &[LogicalTable], ctx: &Arc<GlobalContext>) -> Vec<Column> {
         let mut columns = Vec::new();
+        let df_ctx = ctx.runtime_context.get_session_context();
+
         for table in tables {
             let table_ref = TableReference::bare(table.name.clone());
-            for field in table.schema.fields() {
-                columns.push(Column::new(Some(table_ref.clone()), field.name()));
+
+            // Query DataFusion to get table schema
+            if let Ok(table_provider) = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    df_ctx
+                        .catalog("datafusion")
+                        .unwrap()
+                        .schema("public")
+                        .unwrap()
+                        .table(&table.name)
+                        .await
+                })
+            }) {
+                if let Some(provider) = table_provider {
+                    let schema = provider.schema();
+                    for field in schema.fields() {
+                        columns.push(Column::new(Some(table_ref.clone()), field.name()));
+                    }
+                }
             }
         }
         columns
@@ -123,20 +142,33 @@ impl ExprGenerator {
     }
 
     fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {
-        // We need to check the column types, but we don't have direct access to schema from Column.
-        // We'll need to look up the column types from the registered tables in the context.
+        // Query DataFusion directly for table schema information
         let mut matching_columns = Vec::new();
-
-        let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
+        let df_ctx = self.ctx.runtime_context.get_session_context();
 
         for column in self.src_columns.as_ref() {
-            // For each column, find its type by looking up in the registered tables
+            // For each column, find its type by querying DataFusion
             if let Some(table_name) = &column.relation {
                 let table_name_str = table_name.to_string();
-                if let Some(logical_table) = tables_lock.get(&table_name_str) {
-                    if let Some(field) = logical_table.schema.field_with_name(&column.name).ok() {
-                        if field.data_type() == &target_type {
-                            matching_columns.push(column.clone());
+
+                // Query DataFusion to get table schema
+                if let Ok(table_provider) = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(async {
+                        df_ctx
+                            .catalog("datafusion")
+                            .unwrap()
+                            .schema("public")
+                            .unwrap()
+                            .table(&table_name_str)
+                            .await
+                    })
+                }) {
+                    if let Some(provider) = table_provider {
+                        let schema = provider.schema();
+                        if let Some(field) = schema.field_with_name(&column.name).ok() {
+                            if field.data_type() == &target_type {
+                                matching_columns.push(column.clone());
+                            }
                         }
                     }
                 }

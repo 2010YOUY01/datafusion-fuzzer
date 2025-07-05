@@ -5,10 +5,7 @@ use rand::prelude::IndexedRandom;
 use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
-    common::{
-        LogicalTable, LogicalTableType, Result, fuzzer_err, get_available_data_types,
-        rng::rng_from_seed,
-    },
+    common::{LogicalTable, Result, fuzzer_err, get_available_data_types, rng::rng_from_seed},
     fuzz_context::GlobalContext,
 };
 
@@ -129,7 +126,7 @@ impl SelectStatementBuilder {
         // 2. Generate select exprs
         let expr_seed = self.rng.next_u64();
         let expr_gen = ExprGenerator::new(expr_seed, self.ctx.clone());
-        let src_columns = ExprGenerator::tables_to_columns(&self.src_tables);
+        let src_columns = ExprGenerator::tables_to_columns(&self.src_tables, &self.ctx);
         let mut expr_gen = expr_gen.with_src_columns(Arc::new(src_columns));
 
         // Build SELECT clause: generate expression list
@@ -165,33 +162,15 @@ impl SelectStatementBuilder {
 
         // Get all available tables, filtered by allow_derived_tables setting
         let tables_lock = self.ctx.runtime_context.registered_tables.read().unwrap();
-        let mut available_tables: Vec<Arc<LogicalTable>> = tables_lock
-            .values()
-            .filter(|table| {
-                if self.allow_derived_tables {
-                    // Allow all table types (Table, View, Subquery)
-                    true
-                } else {
-                    // Only allow regular tables
-                    matches!(table.table_type, LogicalTableType::Table)
-                }
-            })
-            .cloned()
-            .collect();
+        let mut available_tables: Vec<Arc<LogicalTable>> = tables_lock.values().cloned().collect();
 
         // Sort tables by name to ensure deterministic ordering
         available_tables.sort_by(|a, b| a.name.cmp(&b.name));
 
         if available_tables.is_empty() {
-            let table_type_description = if self.allow_derived_tables {
-                "tables, views, or subqueries"
-            } else {
-                "tables"
-            };
-            return Err(fuzzer_err(&format!(
-                "No available {} registered inside fuzzer context.",
-                table_type_description
-            )));
+            return Err(fuzzer_err(
+                "No available tables registered inside fuzzer context.",
+            ));
         }
 
         // Determine how many tables to pick (bounded by available tables)

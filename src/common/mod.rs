@@ -2,10 +2,7 @@ use core::fmt;
 use std::io;
 use std::sync::OnceLock;
 
-use datafusion::{
-    arrow::datatypes::{DataType, SchemaRef},
-    error::DataFusionError,
-};
+use datafusion::{arrow::datatypes::DataType, error::DataFusionError};
 
 pub mod rng;
 
@@ -116,6 +113,28 @@ impl FuzzerDataType {
 
         FuzzerDataType::Decimal { precision, scale }
     }
+
+    /// Convert to SQL type string for CREATE TABLE statements
+    pub fn to_sql_type(&self) -> &'static str {
+        match self {
+            FuzzerDataType::Int32 => "INT",
+            FuzzerDataType::Int64 => "BIGINT",
+            FuzzerDataType::UInt32 => "INT UNSIGNED",
+            FuzzerDataType::UInt64 => "BIGINT UNSIGNED",
+            FuzzerDataType::Float32 => "FLOAT",
+            FuzzerDataType::Float64 => "DOUBLE",
+            FuzzerDataType::Boolean => "BOOLEAN",
+            FuzzerDataType::Decimal {
+                precision: _,
+                scale: _,
+            } => {
+                // Note: This is a simplified approach. In a real implementation,
+                // you might want to cache these strings or use a more sophisticated approach
+                // For now, we'll use a default DECIMAL type
+                "DECIMAL"
+            }
+        }
+    }
 }
 
 /// All available data types for the fuzzer
@@ -173,8 +192,6 @@ pub fn get_numeric_data_types() -> Vec<FuzzerDataType> {
 #[derive(Debug, Clone)]
 pub struct LogicalTable {
     pub name: String,
-    pub schema: SchemaRef,
-    pub table_type: LogicalTableType,
 }
 
 #[derive(Debug, Clone)]
@@ -185,12 +202,8 @@ pub enum LogicalTableType {
 }
 
 impl LogicalTable {
-    pub fn new(name: String, schema: SchemaRef, table_type: LogicalTableType) -> Self {
-        Self {
-            name,
-            schema,
-            table_type,
-        }
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 }
 

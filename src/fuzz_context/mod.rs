@@ -101,6 +101,7 @@ pub struct RunnerConfig {
     pub max_row_count: u64,
     pub max_expr_level: u32,
     pub max_table_count: u32,
+    pub max_insert_per_table: u32,
 }
 
 impl RunnerConfig {
@@ -168,6 +169,11 @@ impl RunnerConfig {
         self
     }
 
+    pub fn with_max_insert_per_table(mut self, max_insert_per_table: u32) -> Self {
+        self.max_insert_per_table = max_insert_per_table;
+        self
+    }
+
     pub fn from_file(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .map_err(|e| fuzzer_err(&format!("Failed to read config file: {}", e)))?;
@@ -230,6 +236,7 @@ impl RunnerConfig {
             max_row_count: 100,
             max_expr_level: 3,
             max_table_count: 3,
+            max_insert_per_table: 20,
         }
     }
 }

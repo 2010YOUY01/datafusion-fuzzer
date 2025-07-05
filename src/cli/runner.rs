@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
-use crate::common::{LogicalTable, LogicalTableType, Result};
+use crate::common::{LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
@@ -99,11 +99,7 @@ async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result
 
     // Get all available tables (not views)
     let tables_lock = ctx.runtime_context.registered_tables.read().unwrap();
-    let available_tables: Vec<Arc<LogicalTable>> = tables_lock
-        .values()
-        .filter(|table| matches!(table.table_type, LogicalTableType::Table))
-        .cloned()
-        .collect();
+    let available_tables: Vec<Arc<LogicalTable>> = tables_lock.values().cloned().collect();
     drop(tables_lock);
 
     if available_tables.is_empty() {
@@ -187,10 +183,10 @@ async fn create_and_register_view(
         .await
         .map_err(|e| crate::common::fuzzer_err(&format!("Failed to get view schema: {}", e)))?;
 
-    let schema = dataframe.schema().inner().clone();
+    let _schema = dataframe.schema().inner().clone();
 
     // Register the view in our fuzzer context
-    let logical_table = LogicalTable::new(view_name.to_string(), schema, LogicalTableType::View);
+    let logical_table = LogicalTable::new(view_name.to_string());
 
     ctx.runtime_context
         .registered_tables
@@ -381,6 +377,7 @@ mod tests {
             max_row_count: 10,
             max_expr_level: 2,
             max_table_count: 3,
+            max_insert_per_table: 20,
         };
 
         // Collect results from multiple runs
@@ -468,6 +465,7 @@ mod tests {
             max_row_count: 10,
             max_expr_level: 2,
             max_table_count: 3,
+            max_insert_per_table: 20,
         };
 
         let mut results_by_seed = Vec::new();
