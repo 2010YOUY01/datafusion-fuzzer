@@ -91,6 +91,8 @@ async fn generate_datasets_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Res
     Ok(())
 }
 
+// TODO(coverage): support nested views like
+// create view v2 as select * from v1;
 async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result<()> {
     // Create a deterministic RNG instance for this round
     let mut rng = StdRng::seed_from_u64(seed);

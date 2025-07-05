@@ -106,7 +106,7 @@ impl DatasetGenerator {
         Ok(logical_table)
     }
 
-    // TODO: now numbers generated are all simple values (e.g. int32 - [-100, 100])
+    // TODO(coverage): now numbers generated are all simple values (e.g. int32 - [-100, 100])
     // edge cases and large numbers are not covered.
     fn generate_array_of_type(
         &mut self,
@@ -193,6 +193,41 @@ impl DatasetGenerator {
                 for _ in 0..len {
                     let value = self.rng.random_bool(0.5); // 50% chance of true/false
                     builder.append_value(value);
+                }
+
+                Ok(Arc::new(builder.finish()))
+            }
+            FuzzerDataType::Decimal128 { precision, scale } => {
+                use datafusion::arrow::array::Decimal128Builder;
+
+                let mut builder =
+                    Decimal128Builder::new().with_precision_and_scale(*precision, *scale)?;
+                for _ in 0..len {
+                    // Generate a decimal value that fits within the precision and scale
+                    // Use smaller ranges to prevent overflow issues
+                    let scale_factor = 10_i128.pow(*scale as u32);
+
+                    // Use a much smaller range to avoid overflow and keep values manageable
+                    // Instead of using full precision, limit to smaller safe ranges
+                    let safe_range = match *precision {
+                        1..=10 => 1000,    // For small precision, use range -1000 to 1000
+                        11..=20 => 10000,  // For medium precision, use range -10000 to 10000
+                        21..=30 => 100000, // For larger precision, use range -100000 to 100000
+                        _ => 1000000,      // For max precision, use range -1000000 to 1000000
+                    };
+
+                    let max_value = safe_range;
+                    let min_value = -max_value;
+
+                    let integral_part = self.rng.random_range(min_value..=max_value);
+                    let fractional_part = if *scale > 0 {
+                        self.rng.random_range(0..scale_factor)
+                    } else {
+                        0
+                    };
+
+                    let decimal_value = integral_part * scale_factor + fractional_part;
+                    builder.append_value(decimal_value);
                 }
 
                 Ok(Arc::new(builder.finish()))

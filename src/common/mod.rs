@@ -9,7 +9,14 @@ use datafusion::{
 
 pub mod rng;
 
+// How to add a new data type:
+// 1. Update current file
+// 2. Update dataset_generator
+// 3. Maybe update the `expr_impl.rs` if the new data type is supported in existing
+// expressions.
+
 /// Make it easier to manage supported DataFusion data types.
+/// I can't remember why I added this indrection...
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FuzzerDataType {
     Int32,
@@ -19,6 +26,7 @@ pub enum FuzzerDataType {
     Float32,
     Float64,
     Boolean,
+    Decimal128 { precision: u8, scale: i8 },
 }
 
 impl FuzzerDataType {
@@ -32,6 +40,9 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => DataType::Float32,
             FuzzerDataType::Float64 => DataType::Float64,
             FuzzerDataType::Boolean => DataType::Boolean,
+            FuzzerDataType::Decimal128 { precision, scale } => {
+                DataType::Decimal128(*precision, *scale)
+            }
         }
     }
 
@@ -45,6 +56,10 @@ impl FuzzerDataType {
             DataType::Float32 => Some(FuzzerDataType::Float32),
             DataType::Float64 => Some(FuzzerDataType::Float64),
             DataType::Boolean => Some(FuzzerDataType::Boolean),
+            DataType::Decimal128(precision, scale) => Some(FuzzerDataType::Decimal128 {
+                precision: *precision,
+                scale: *scale,
+            }),
             _ => None,
         }
     }
@@ -59,6 +74,7 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => "float32",
             FuzzerDataType::Float64 => "float64",
             FuzzerDataType::Boolean => "boolean",
+            FuzzerDataType::Decimal128 { .. } => "decimal128",
         }
     }
 
@@ -69,9 +85,21 @@ impl FuzzerDataType {
             | FuzzerDataType::UInt32
             | FuzzerDataType::UInt64
             | FuzzerDataType::Float32
-            | FuzzerDataType::Float64 => true,
+            | FuzzerDataType::Float64
+            | FuzzerDataType::Decimal128 { .. } => true,
             FuzzerDataType::Boolean => false,
         }
+    }
+
+    /// Create a random Decimal128 type with valid precision and scale
+    pub fn random_decimal128<R: rand::Rng>(rng: &mut R) -> Self {
+        // Use reasonable precision and scale values for testing
+        // Precision: 1-38 (maximum for Decimal128)
+        let precision = rng.random_range(1..=38);
+        // Scale: 0 to precision (can't exceed precision)
+        let scale = rng.random_range(0..=precision as i8);
+
+        FuzzerDataType::Decimal128 { precision, scale }
     }
 }
 
@@ -89,6 +117,19 @@ pub fn init_available_data_types() {
             FuzzerDataType::Float32,
             FuzzerDataType::Float64,
             FuzzerDataType::Boolean,
+            // Add some common decimal types for testing
+            FuzzerDataType::Decimal128 {
+                precision: 10,
+                scale: 2,
+            }, // Common currency format
+            FuzzerDataType::Decimal128 {
+                precision: 18,
+                scale: 4,
+            }, // Higher precision
+            FuzzerDataType::Decimal128 {
+                precision: 38,
+                scale: 10,
+            }, // Max precision with scale
         ]
     });
 }
