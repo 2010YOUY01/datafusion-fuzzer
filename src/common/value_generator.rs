@@ -33,7 +33,7 @@ pub struct ValueGenerationConfig {
 impl Default for ValueGenerationConfig {
     fn default() -> Self {
         Self {
-            nullable: false,
+            nullable: true,
             null_probability: 0.1,
             int_range: (-100, 100),
             uint_range: (0, 200),

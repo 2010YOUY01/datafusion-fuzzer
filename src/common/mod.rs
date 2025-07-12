@@ -9,19 +9,19 @@ pub mod value_generator;
 
 // How to add a new data type:
 // 1. Add enum variant and update all match statements
-//    → src/common/mod.rs
+//    --> src/common/mod.rs
 // 2. Add SQL value generation
-//    → src/datasource_generator/dataset_generator.rs
+//    --> src/datasource_generator/dataset_generator.rs
 // 3. Add scalar literal generation
-//    → src/query_generator/expr_literal_gen.rs
+//    --> src/query_generator/expr_literal_gen.rs
 // 4. Add new operators (if needed)
-//    → src/query_generator/expr_impl.rs
+//    --> src/query_generator/expr_impl.rs
 // 5. Add operator enum variants (if needed)
-//    → src/query_generator/expr_def.rs
+//    --> src/query_generator/expr_def.rs
 // 6. Add expression building (if needed)
-//    → src/query_generator/expr_gen.rs
+//    --> src/query_generator/expr_gen.rs
 // 7. Add error patterns (if needed)
-//    → src/cli/error_whitelist.rs
+//    --> src/cli/error_whitelist.rs
 
 /// Make it easier to manage supported DataFusion data types.
 /// I can't remember why I added this indrection...

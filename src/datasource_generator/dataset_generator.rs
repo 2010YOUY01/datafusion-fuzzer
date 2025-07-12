@@ -43,7 +43,8 @@ impl DatasetGenerator {
                 fuzzer_column_type.display_name()
             );
             let sql_type = fuzzer_column_type.to_sql_type();
-            column_definitions.push(format!("{} {} NOT NULL", column_name, sql_type));
+            // TODO(coverage): enforce `NOT NULL` somethimes.
+            column_definitions.push(format!("{} {}", column_name, sql_type));
             column_fuzzer_types.push(fuzzer_column_type.clone());
         }
 
