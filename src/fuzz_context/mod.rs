@@ -10,6 +10,7 @@ use std::sync::{
 use datafusion::{common::HashMap, prelude::SessionContext};
 use serde::{Deserialize, Serialize};
 
+use crate::common::value_generator::ValueGenerationConfig;
 use crate::common::{LogicalTable, Result, fuzzer_err};
 use crate::fuzz_runner::FuzzerStats;
 
@@ -245,6 +246,8 @@ pub struct RuntimeContext {
     pub df_ctx: Arc<RwLock<Arc<SessionContext>>>,
     pub registered_tables: Arc<RwLock<HashMap<String, Arc<LogicalTable>>>>,
     current_table_idx: AtomicU32,
+    // Cached value generation config for performance (nullable by default)
+    pub value_generation_config: ValueGenerationConfig,
 }
 
 impl RuntimeContext {
@@ -253,6 +256,7 @@ impl RuntimeContext {
             df_ctx: Arc::new(RwLock::new(df_ctx)),
             registered_tables: Arc::new(RwLock::new(HashMap::new())),
             current_table_idx: AtomicU32::new(0),
+            value_generation_config: ValueGenerationConfig::default(), // Non-nullable by default
         }
     }
 
@@ -261,6 +265,7 @@ impl RuntimeContext {
             df_ctx: Arc::new(RwLock::new(default_df_session_context())),
             registered_tables: Arc::new(RwLock::new(HashMap::new())),
             current_table_idx: AtomicU32::new(0),
+            value_generation_config: ValueGenerationConfig::default(), // Non-nullable by default
         }
     }
 

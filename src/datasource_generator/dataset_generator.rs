@@ -5,6 +5,7 @@ use rand::Rng;
 use rand::rngs::StdRng;
 use tracing::info;
 
+use crate::common::value_generator::generate_value;
 use crate::common::{FuzzerDataType, LogicalColumn, LogicalTable, get_available_data_types};
 use crate::{common::rng::rng_from_seed, fuzz_context::GlobalContext};
 
@@ -130,65 +131,11 @@ impl DatasetGenerator {
     // TODO(coverage): Now we only use simple values to prevent overflow.
     // switch to full range with edge cases like min/max for more coverage.
     fn generate_sql_value(&mut self, fuzzer_type: &FuzzerDataType) -> String {
-        match fuzzer_type {
-            FuzzerDataType::Int32 => {
-                let value = self.rng.random_range(-100..=100);
-                value.to_string()
-            }
-            FuzzerDataType::Int64 => {
-                let value = self.rng.random_range(-100..=100);
-                value.to_string()
-            }
-            FuzzerDataType::UInt32 => {
-                let value = self.rng.random_range(0..=100);
-                value.to_string()
-            }
-            FuzzerDataType::UInt64 => {
-                let value = self.rng.random_range(0..=100);
-                value.to_string()
-            }
-            FuzzerDataType::Float32 => {
-                let value = self.rng.random_range(-100.0..=100.0);
-                value.to_string()
-            }
-            FuzzerDataType::Float64 => {
-                let value = self.rng.random_range(-100.0..=100.0);
-                value.to_string()
-            }
-            FuzzerDataType::Boolean => {
-                let value = self.rng.random_bool(0.5);
-                if value { "TRUE" } else { "FALSE" }.to_string()
-            }
-            FuzzerDataType::Decimal { precision, scale } => {
-                // Generate simple decimal values to prevent overflow
-                // TODO(known-bug): Generate Decimal 256 after the upstream issue addressed
-                // https://github.com/apache/datafusion/issues/16689
-
-                // Use a smaller range to prevent overflows for now
-                // Generate decimal values that respect precision and scale constraints
-                // Precision = total digits, Scale = digits after decimal point
-
-                // Use a conservative range to avoid overflow issues
-                let simple_value = self.rng.random_range(-99999..=99999);
-
-                // Format as decimal with the specified scale
-                if *scale > 0 {
-                    // Split into integer and fractional parts
-                    let scale_factor = 10_i64.pow(*scale as u32);
-                    let integer_part = simple_value / scale_factor;
-                    let fractional_part = (simple_value % scale_factor).abs();
-
-                    format!(
-                        "{}.{:0width$}",
-                        integer_part,
-                        fractional_part,
-                        width = *scale as usize
-                    )
-                } else {
-                    // No decimal places needed
-                    simple_value.to_string()
-                }
-            }
-        }
+        let value = generate_value(
+            &mut self.rng,
+            fuzzer_type,
+            &self.ctx.runtime_context.value_generation_config,
+        );
+        value.to_sql_string()
     }
 }
