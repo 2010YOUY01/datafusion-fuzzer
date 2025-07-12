@@ -37,6 +37,7 @@ pub enum FuzzerDataType {
     // When precision is [1, 38], the physical type in DF is Decimal128.
     // When precision is [39, 76], the physical type in DF is Decimal256.
     Decimal { precision: u8, scale: i8 },
+    Date32,
 }
 
 impl FuzzerDataType {
@@ -60,6 +61,7 @@ impl FuzzerDataType {
                     DataType::Decimal256(*precision, *scale)
                 }
             }
+            FuzzerDataType::Date32 => DataType::Date32,
         }
     }
 
@@ -83,6 +85,7 @@ impl FuzzerDataType {
                 precision: *precision,
                 scale: *scale,
             }),
+            DataType::Date32 => Some(FuzzerDataType::Date32),
             _ => None,
         }
     }
@@ -98,6 +101,7 @@ impl FuzzerDataType {
             FuzzerDataType::Float64 => "float64",
             FuzzerDataType::Boolean => "boolean",
             FuzzerDataType::Decimal { .. } => "decimal128",
+            FuzzerDataType::Date32 => "date32",
         }
     }
 
@@ -111,6 +115,21 @@ impl FuzzerDataType {
             | FuzzerDataType::Float64
             | FuzzerDataType::Decimal { .. } => true,
             FuzzerDataType::Boolean => false,
+            FuzzerDataType::Date32 => false,
+        }
+    }
+
+    pub fn is_time(&self) -> bool {
+        match self {
+            FuzzerDataType::Date32 => true,
+            FuzzerDataType::Int32
+            | FuzzerDataType::Int64
+            | FuzzerDataType::UInt32
+            | FuzzerDataType::UInt64
+            | FuzzerDataType::Float32
+            | FuzzerDataType::Float64
+            | FuzzerDataType::Boolean
+            | FuzzerDataType::Decimal { .. } => false,
         }
     }
 
@@ -144,6 +163,7 @@ impl FuzzerDataType {
                 // For now, we'll use a default DECIMAL type
                 "DECIMAL"
             }
+            FuzzerDataType::Date32 => "DATE",
         }
     }
 }
@@ -178,8 +198,9 @@ pub fn init_available_data_types() {
                 precision: 38,
                 scale: 10,
             }, // Max Decimal128 precision
-               // Note: Decimal256 types (precision > 38) currently cause casting issues in DataFusion
-               // They will be re-enabled once the upstream casting bugs are fixed
+            // Note: Decimal256 types (precision > 38) currently cause casting issues in DataFusion
+            // They will be re-enabled once the upstream casting bugs are fixed
+            FuzzerDataType::Date32,
         ]
     });
 }
@@ -196,6 +217,15 @@ pub fn get_numeric_data_types() -> Vec<FuzzerDataType> {
     get_available_data_types()
         .iter()
         .filter(|data_type| data_type.is_numeric())
+        .cloned()
+        .collect()
+}
+
+/// Get all time data types (Date32, and future time types)
+pub fn get_time_data_types() -> Vec<FuzzerDataType> {
+    get_available_data_types()
+        .iter()
+        .filter(|data_type| data_type.is_time())
         .cloned()
         .collect()
 }

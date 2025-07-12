@@ -1,0 +1,16 @@
+---
+description: System-level prompt for LLM contributing to the codebase
+globs:
+  - "**/*"
+alwaysApply: false
+---
+
+# System level prompts
+
+This is the instruction for LLM that is trying to modify the current codebase.
+
+1. If anything about the prompt is not clear, ask for clarification instead of
+   modifying the code directly.
+2. After implementing one feature (don't run for every small changes), try to run:
+   cargo run -- --rounds 2 --queries-per-round 100
+---

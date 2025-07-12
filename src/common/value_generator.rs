@@ -17,6 +17,7 @@ pub enum GeneratedValue {
         precision: u8,
         scale: i8,
     },
+    Date32(i32), // Days since Unix epoch (1970-01-01)
     Null,
 }
 
@@ -106,6 +107,13 @@ pub fn generate_value(
                 scale: *scale,
             }
         }
+        FuzzerDataType::Date32 => {
+            // Generate a reasonable range of dates:
+            // - Days 0-36500 covers approximately 100 years from 1970-01-01
+            // - This gives us dates from 1970-01-01 to roughly 2070
+            let days_since_epoch = rng.random_range(0..=36500);
+            GeneratedValue::Date32(days_since_epoch)
+        }
     }
 }
 
@@ -140,6 +148,20 @@ impl GeneratedValue {
                     value.to_string()
                 }
             }
+            GeneratedValue::Date32(days_since_epoch) => {
+                // Convert days since Unix epoch to SQL date format
+                // Unix epoch is 1970-01-01
+                let days = *days_since_epoch;
+
+                // Simple conversion: approximate calculation
+                // This is a simplified approach for fuzzing purposes
+                let year = 1970 + (days / 365);
+                let remaining_days = days % 365;
+                let month = 1 + (remaining_days / 30);
+                let day = 1 + (remaining_days % 30);
+
+                format!("'{:04}-{:02}-{:02}'", year, month, day)
+            }
             GeneratedValue::Null => "NULL".to_string(),
         }
     }
@@ -169,6 +191,7 @@ impl GeneratedValue {
                     ScalarValue::Decimal256(Some(decimal_value_256), *precision, *scale)
                 }
             }
+            GeneratedValue::Date32(v) => ScalarValue::Date32(Some(*v)),
             GeneratedValue::Null => ScalarValue::Null,
         }
     }

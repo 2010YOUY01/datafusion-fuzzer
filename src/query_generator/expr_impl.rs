@@ -1,7 +1,7 @@
 use datafusion::arrow::datatypes::DataType;
 
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
-use crate::common::{FuzzerDataType, get_numeric_data_types};
+use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types};
 
 /// To add new expressions: Add a new variant to [`BaseExpr`] and then follow the pattern along.
 /// - [x] Numeric Operators: +, -, *, /, %
@@ -16,7 +16,10 @@ use crate::common::{FuzzerDataType, get_numeric_data_types};
 pub struct AddExpr;
 impl BaseExprWithInfo for AddExpr {
     fn describe(&self) -> ExprWrapper {
-        let possible_return_types = get_numeric_data_types();
+        // Support both numeric and time types for addition
+        let mut possible_return_types = get_numeric_data_types();
+        possible_return_types.extend(get_time_data_types());
+
         let return_types: Vec<DataType> = possible_return_types
             .iter()
             .map(|ft| ft.to_datafusion_type())
@@ -33,7 +36,10 @@ impl BaseExprWithInfo for AddExpr {
 pub struct SubExpr;
 impl BaseExprWithInfo for SubExpr {
     fn describe(&self) -> ExprWrapper {
-        let possible_return_types = get_numeric_data_types();
+        // Support both numeric and time types for subtraction
+        let mut possible_return_types = get_numeric_data_types();
+        possible_return_types.extend(get_time_data_types());
+
         let return_types: Vec<DataType> = possible_return_types
             .iter()
             .map(|ft| ft.to_datafusion_type())
@@ -50,7 +56,10 @@ impl BaseExprWithInfo for SubExpr {
 pub struct MulExpr;
 impl BaseExprWithInfo for MulExpr {
     fn describe(&self) -> ExprWrapper {
-        let possible_return_types = get_numeric_data_types();
+        // Support both numeric and time types for multiplication
+        let mut possible_return_types = get_numeric_data_types();
+        possible_return_types.extend(get_time_data_types());
+
         let return_types: Vec<DataType> = possible_return_types
             .iter()
             .map(|ft| ft.to_datafusion_type())
@@ -67,7 +76,11 @@ impl BaseExprWithInfo for MulExpr {
 pub struct DivExpr;
 impl BaseExprWithInfo for DivExpr {
     fn describe(&self) -> ExprWrapper {
-        let possible_return_types = get_numeric_data_types();
+        // Support both numeric and time types for division
+        // TODO(coverage): investigate if time types actually support division
+        let mut possible_return_types = get_numeric_data_types();
+        possible_return_types.extend(get_time_data_types());
+
         let return_types: Vec<DataType> = possible_return_types
             .iter()
             .map(|ft| ft.to_datafusion_type())
@@ -84,7 +97,11 @@ impl BaseExprWithInfo for DivExpr {
 pub struct ModExpr;
 impl BaseExprWithInfo for ModExpr {
     fn describe(&self) -> ExprWrapper {
-        let possible_return_types = get_numeric_data_types();
+        // Support both numeric and time types for modulo
+        // TODO(coverage): investigate if time types actually support division
+        let mut possible_return_types = get_numeric_data_types();
+        possible_return_types.extend(get_time_data_types());
+
         let return_types: Vec<DataType> = possible_return_types
             .iter()
             .map(|ft| ft.to_datafusion_type())
