@@ -127,6 +127,8 @@ impl DatasetGenerator {
         Ok(logical_table)
     }
 
+    // TODO(coverage): Now we only use simple values to prevent overflow.
+    // switch to full range with edge cases like min/max for more coverage.
     fn generate_sql_value(&mut self, fuzzer_type: &FuzzerDataType) -> String {
         match fuzzer_type {
             FuzzerDataType::Int32 => {
@@ -157,19 +159,35 @@ impl DatasetGenerator {
                 let value = self.rng.random_bool(0.5);
                 if value { "TRUE" } else { "FALSE" }.to_string()
             }
-            FuzzerDataType::Decimal {
-                precision: _,
-                scale,
-            } => {
-                // Generate simple decimal values using floating point to avoid overflow
-                let simple_value = self.rng.random_range(-100..=100);
-                // Use floating point division to create decimal values safely
-                let decimal_value = if *scale > 0 {
-                    simple_value as f64 / (10.0_f64.powi(*scale as i32))
+            FuzzerDataType::Decimal { precision, scale } => {
+                // Generate simple decimal values to prevent overflow
+                // TODO(known-bug): Generate Decimal 256 after the upstream issue addressed
+                // https://github.com/apache/datafusion/issues/16689
+
+                // Use a smaller range to prevent overflows for now
+                // Generate decimal values that respect precision and scale constraints
+                // Precision = total digits, Scale = digits after decimal point
+
+                // Use a conservative range to avoid overflow issues
+                let simple_value = self.rng.random_range(-99999..=99999);
+
+                // Format as decimal with the specified scale
+                if *scale > 0 {
+                    // Split into integer and fractional parts
+                    let scale_factor = 10_i64.pow(*scale as u32);
+                    let integer_part = simple_value / scale_factor;
+                    let fractional_part = (simple_value % scale_factor).abs();
+
+                    format!(
+                        "{}.{:0width$}",
+                        integer_part,
+                        fractional_part,
+                        width = *scale as usize
+                    )
                 } else {
-                    simple_value as f64
-                };
-                decimal_value.to_string()
+                    // No decimal places needed
+                    simple_value.to_string()
+                }
             }
         }
     }
