@@ -57,6 +57,111 @@ fn safe_power_of_10(scale: i8) -> i128 {
     }
 }
 
+/// Convert days since Unix epoch (1970-01-01) to a proper date string
+/// This function properly handles leap years and varying month lengths
+fn days_to_date_string(days_since_epoch: i32) -> String {
+    // Days per month (non-leap year)
+    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let mut days = days_since_epoch;
+    let mut year = 1970;
+
+    // Calculate year
+    while days >= 365 {
+        // Check if current year is a leap year
+        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+        let days_in_year = if is_leap { 366 } else { 365 };
+
+        if days >= days_in_year {
+            days -= days_in_year;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate month and day
+    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+    let mut month = 1;
+    let mut day = days + 1; // +1 because days are 0-indexed
+
+    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
+        let adjusted_days = if i == 1 && is_leap {
+            days_in_month + 1
+        } else {
+            days_in_month
+        };
+
+        if day <= adjusted_days {
+            break;
+        }
+        day -= adjusted_days;
+        month += 1;
+    }
+
+    format!("'{:04}-{:02}-{:02}'", year, month, day)
+}
+
+/// Convert nanoseconds since Unix epoch to a proper timestamp string
+/// This function properly handles leap years and varying month lengths
+fn nanoseconds_to_timestamp_string(nanoseconds_since_epoch: i64) -> String {
+    // Days per month (non-leap year)
+    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
+    let days_since_epoch = nanoseconds_since_epoch / nanoseconds_per_day;
+    let remaining_ns = nanoseconds_since_epoch % nanoseconds_per_day;
+
+    let mut days = days_since_epoch as i32;
+    let mut year = 1970;
+
+    // Calculate year
+    while days >= 365 {
+        // Check if current year is a leap year
+        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+        let days_in_year = if is_leap { 366 } else { 365 };
+
+        if days >= days_in_year {
+            days -= days_in_year;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate month and day
+    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+    let mut month = 1;
+    let mut day = days + 1; // +1 because days are 0-indexed
+
+    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
+        let adjusted_days = if i == 1 && is_leap {
+            days_in_month + 1
+        } else {
+            days_in_month
+        };
+
+        if day <= adjusted_days {
+            break;
+        }
+        day -= adjusted_days;
+        month += 1;
+    }
+
+    // Calculate time components
+    let hours = remaining_ns / (60 * 60 * 1_000_000_000);
+    let remaining_ns = remaining_ns % (60 * 60 * 1_000_000_000);
+    let minutes = remaining_ns / (60 * 1_000_000_000);
+    let remaining_ns = remaining_ns % (60 * 1_000_000_000);
+    let seconds = remaining_ns / 1_000_000_000;
+    let nanoseconds = remaining_ns % 1_000_000_000;
+
+    format!(
+        "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09}'",
+        year, month, day, hours, minutes, seconds, nanoseconds
+    )
+}
+
 /// Core value generation logic shared by both functions
 pub fn generate_value(
     rng: &mut StdRng,
@@ -172,18 +277,7 @@ impl GeneratedValue {
             GeneratedValue::Date32(days_since_epoch) => {
                 // Convert days since Unix epoch to SQL date format
                 // Unix epoch is 1970-01-01
-                let days = *days_since_epoch;
-
-                // Simple conversion: approximate calculation
-                // This is a simplified approach for fuzzing purposes
-                let year = 1970 + (days / 365);
-                let remaining_days = days % 365;
-                let month = 1 + (remaining_days / 30);
-                let day = 1 + (remaining_days % 30);
-
-                // TODO(coverage): we can inject some invalid dates like 2025/2/31
-
-                format!("'{:04}-{:02}-{:02}'", year, month, day)
+                days_to_date_string(*days_since_epoch)
             }
             GeneratedValue::Time64Nanosecond(nanoseconds) => {
                 // Convert nanoseconds since midnight to SQL time format (HH:MM:SS.nnnnnnnnn)
@@ -205,32 +299,7 @@ impl GeneratedValue {
             }
             GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch) => {
                 // Convert nanoseconds since Unix epoch to SQL timestamp format
-                let ns = *nanoseconds_since_epoch;
-
-                // Calculate days, hours, minutes, seconds, and nanoseconds
-                let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
-                let days_since_epoch = ns / nanoseconds_per_day;
-                let remaining_ns = ns % nanoseconds_per_day;
-
-                // Calculate date components (simplified approach for fuzzing)
-                let year = 1970 + (days_since_epoch / 365);
-                let remaining_days = days_since_epoch % 365;
-                let month = 1 + (remaining_days / 30);
-                let day = 1 + (remaining_days % 30);
-
-                // Calculate time components
-                let hours = remaining_ns / (60 * 60 * 1_000_000_000);
-                let remaining_ns = remaining_ns % (60 * 60 * 1_000_000_000);
-                let minutes = remaining_ns / (60 * 1_000_000_000);
-                let remaining_ns = remaining_ns % (60 * 1_000_000_000);
-                let seconds = remaining_ns / 1_000_000_000;
-                let nanoseconds = remaining_ns % 1_000_000_000;
-
-                // Format as SQL timestamp literal with nanosecond precision
-                format!(
-                    "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09}'",
-                    year, month, day, hours, minutes, seconds, nanoseconds
-                )
+                nanoseconds_to_timestamp_string(*nanoseconds_since_epoch)
             }
             GeneratedValue::Null => "NULL".to_string(),
         }
@@ -391,5 +460,188 @@ mod tests {
         assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMP");
         assert!(fuzzer_type.is_time());
         assert!(!fuzzer_type.is_numeric());
+    }
+
+    #[test]
+    fn test_date_generation_validity() {
+        // Test that date generation produces valid dates
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::Date32;
+
+        // Use non-nullable configuration for testing
+        let config = ValueGenerationConfig {
+            nullable: false,
+            null_probability: 0.0,
+            int_range: (-100, 100),
+            uint_range: (0, 200),
+            float_range: (-100.0, 100.0),
+        };
+
+        // Generate multiple dates and verify they are valid
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &fuzzer_type, &config);
+
+            match value {
+                GeneratedValue::Date32(_) => {
+                    let sql_string = value.to_sql_string();
+                    // Verify the format is correct: 'YYYY-MM-DD'
+                    assert!(sql_string.starts_with("'"), "Date should start with quote");
+                    assert!(sql_string.ends_with("'"), "Date should end with quote");
+
+                    // Extract the date part (remove quotes)
+                    let date_part = &sql_string[1..sql_string.len() - 1];
+                    let parts: Vec<&str> = date_part.split('-').collect();
+                    assert_eq!(parts.len(), 3, "Date should have 3 parts: year-month-day");
+
+                    let year: i32 = parts[0].parse().expect("Year should be parseable");
+                    let month: i32 = parts[1].parse().expect("Month should be parseable");
+                    let day: i32 = parts[2].parse().expect("Day should be parseable");
+
+                    // Verify valid ranges
+                    assert!(year >= 1970, "Year should be >= 1970");
+                    assert!(year <= 2070, "Year should be <= 2070");
+                    assert!(month >= 1, "Month should be >= 1");
+                    assert!(month <= 12, "Month should be <= 12");
+                    assert!(day >= 1, "Day should be >= 1");
+                    assert!(day <= 31, "Day should be <= 31");
+
+                    // Verify month-specific day limits
+                    let max_days = match month {
+                        2 => 29, // Allow leap year February
+                        4 | 6 | 9 | 11 => 30,
+                        _ => 31,
+                    };
+                    assert!(
+                        day <= max_days,
+                        "Day {} is invalid for month {}",
+                        day,
+                        month
+                    );
+                }
+                _ => panic!("Expected Date32 value, got: {:?}", value),
+            }
+        }
+    }
+
+    #[test]
+    fn test_timestamp_generation_validity() {
+        // Test that timestamp generation produces valid timestamps
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+
+        // Use non-nullable configuration for testing
+        let config = ValueGenerationConfig {
+            nullable: false,
+            null_probability: 0.0,
+            int_range: (-100, 100),
+            uint_range: (0, 200),
+            float_range: (-100.0, 100.0),
+        };
+
+        // Generate multiple timestamps and verify they are valid
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &fuzzer_type, &config);
+
+            match value {
+                GeneratedValue::TimestampNanosecond(_) => {
+                    let sql_string = value.to_sql_string();
+                    // Verify the format is correct: 'YYYY-MM-DD HH:MM:SS.nnnnnnnnn'
+                    assert!(
+                        sql_string.starts_with("'"),
+                        "Timestamp should start with quote"
+                    );
+                    assert!(sql_string.ends_with("'"), "Timestamp should end with quote");
+
+                    // Extract the date-time part (remove quotes)
+                    let datetime_part = &sql_string[1..sql_string.len() - 1];
+                    let space_parts: Vec<&str> = datetime_part.split(' ').collect();
+                    assert_eq!(
+                        space_parts.len(),
+                        2,
+                        "Timestamp should have date and time parts"
+                    );
+
+                    let date_part = space_parts[0];
+                    let time_part = space_parts[1];
+
+                    // Parse date part
+                    let date_parts: Vec<&str> = date_part.split('-').collect();
+                    assert_eq!(
+                        date_parts.len(),
+                        3,
+                        "Date should have 3 parts: year-month-day"
+                    );
+
+                    let year: i32 = date_parts[0].parse().expect("Year should be parseable");
+                    let month: i32 = date_parts[1].parse().expect("Month should be parseable");
+                    let day: i32 = date_parts[2].parse().expect("Day should be parseable");
+
+                    // Verify valid date ranges
+                    assert!(year >= 1970, "Year should be >= 1970");
+                    assert!(year <= 2070, "Year should be <= 2070");
+                    assert!(month >= 1, "Month should be >= 1");
+                    assert!(month <= 12, "Month should be <= 12");
+                    assert!(day >= 1, "Day should be >= 1");
+                    assert!(day <= 31, "Day should be <= 31");
+
+                    // Verify month-specific day limits
+                    let max_days = match month {
+                        2 => 29, // Allow leap year February
+                        4 | 6 | 9 | 11 => 30,
+                        _ => 31,
+                    };
+                    assert!(
+                        day <= max_days,
+                        "Day {} is invalid for month {}",
+                        day,
+                        month
+                    );
+
+                    // Parse time part
+                    let time_parts: Vec<&str> = time_part.split(':').collect();
+                    assert_eq!(
+                        time_parts.len(),
+                        3,
+                        "Time should have 3 parts: hour:minute:second.nanosecond"
+                    );
+
+                    let hour: i32 = time_parts[0].parse().expect("Hour should be parseable");
+                    let minute: i32 = time_parts[1].parse().expect("Minute should be parseable");
+                    let second_part = time_parts[2];
+
+                    // Verify valid time ranges
+                    assert!(hour >= 0, "Hour should be >= 0");
+                    assert!(hour <= 23, "Hour should be <= 23");
+                    assert!(minute >= 0, "Minute should be >= 0");
+                    assert!(minute <= 59, "Minute should be <= 59");
+
+                    // Parse seconds and nanoseconds
+                    let second_parts: Vec<&str> = second_part.split('.').collect();
+                    assert_eq!(
+                        second_parts.len(),
+                        2,
+                        "Second part should have seconds and nanoseconds"
+                    );
+
+                    let second: i32 = second_parts[0].parse().expect("Second should be parseable");
+                    let nanosecond: i32 = second_parts[1]
+                        .parse()
+                        .expect("Nanosecond should be parseable");
+
+                    assert!(second >= 0, "Second should be >= 0");
+                    assert!(second <= 59, "Second should be <= 59");
+                    assert!(nanosecond >= 0, "Nanosecond should be >= 0");
+                    assert!(
+                        nanosecond <= 999_999_999,
+                        "Nanosecond should be <= 999999999"
+                    );
+                }
+                _ => panic!("Expected TimestampNanosecond value, got: {:?}", value),
+            }
+        }
     }
 }
