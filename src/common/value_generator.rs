@@ -45,123 +45,6 @@ impl Default for ValueGenerationConfig {
     }
 }
 
-/// Safely calculate 10^scale, preventing overflow
-fn safe_power_of_10(scale: i8) -> i128 {
-    // The maximum power of 10 that fits in i128 is approximately 10^38
-    // For safety, we limit to 10^30 to avoid overflow in calculations
-    let safe_scale = std::cmp::min(scale as u32, 30);
-    match safe_scale {
-        0 => 1,
-        1..=30 => 10_i128.pow(safe_scale),
-        _ => 10_i128.pow(30), // Fallback to 10^30 for any edge cases
-    }
-}
-
-/// Convert days since Unix epoch (1970-01-01) to a proper date string
-/// This function properly handles leap years and varying month lengths
-fn days_to_date_string(days_since_epoch: i32) -> String {
-    // Days per month (non-leap year)
-    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    let mut days = days_since_epoch;
-    let mut year = 1970;
-
-    // Calculate year
-    while days >= 365 {
-        // Check if current year is a leap year
-        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
-        let days_in_year = if is_leap { 366 } else { 365 };
-
-        if days >= days_in_year {
-            days -= days_in_year;
-            year += 1;
-        } else {
-            break;
-        }
-    }
-
-    // Calculate month and day
-    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
-    let mut month = 1;
-    let mut day = days + 1; // +1 because days are 0-indexed
-
-    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
-        let adjusted_days = if i == 1 && is_leap {
-            days_in_month + 1
-        } else {
-            days_in_month
-        };
-
-        if day <= adjusted_days {
-            break;
-        }
-        day -= adjusted_days;
-        month += 1;
-    }
-
-    format!("'{:04}-{:02}-{:02}'", year, month, day)
-}
-
-/// Convert nanoseconds since Unix epoch to a proper timestamp string
-/// This function properly handles leap years and varying month lengths
-fn nanoseconds_to_timestamp_string(nanoseconds_since_epoch: i64) -> String {
-    // Days per month (non-leap year)
-    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
-    let days_since_epoch = nanoseconds_since_epoch / nanoseconds_per_day;
-    let remaining_ns = nanoseconds_since_epoch % nanoseconds_per_day;
-
-    let mut days = days_since_epoch as i32;
-    let mut year = 1970;
-
-    // Calculate year
-    while days >= 365 {
-        // Check if current year is a leap year
-        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
-        let days_in_year = if is_leap { 366 } else { 365 };
-
-        if days >= days_in_year {
-            days -= days_in_year;
-            year += 1;
-        } else {
-            break;
-        }
-    }
-
-    // Calculate month and day
-    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
-    let mut month = 1;
-    let mut day = days + 1; // +1 because days are 0-indexed
-
-    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
-        let adjusted_days = if i == 1 && is_leap {
-            days_in_month + 1
-        } else {
-            days_in_month
-        };
-
-        if day <= adjusted_days {
-            break;
-        }
-        day -= adjusted_days;
-        month += 1;
-    }
-
-    // Calculate time components
-    let hours = remaining_ns / (60 * 60 * 1_000_000_000);
-    let remaining_ns = remaining_ns % (60 * 60 * 1_000_000_000);
-    let minutes = remaining_ns / (60 * 1_000_000_000);
-    let remaining_ns = remaining_ns % (60 * 1_000_000_000);
-    let seconds = remaining_ns / 1_000_000_000;
-    let nanoseconds = remaining_ns % 1_000_000_000;
-
-    format!(
-        "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09}'",
-        year, month, day, hours, minutes, seconds, nanoseconds
-    )
-}
-
 /// Core value generation logic shared by both functions
 pub fn generate_value(
     rng: &mut StdRng,
@@ -338,6 +221,127 @@ impl GeneratedValue {
             GeneratedValue::Null => ScalarValue::Null,
         }
     }
+}
+
+// =================
+// Utility functions
+// =================
+
+/// Safely calculate 10^scale, preventing overflow
+fn safe_power_of_10(scale: i8) -> i128 {
+    // The maximum power of 10 that fits in i128 is approximately 10^38
+    // For safety, we limit to 10^30 to avoid overflow in calculations
+    let safe_scale = std::cmp::min(scale as u32, 30);
+    match safe_scale {
+        0 => 1,
+        1..=30 => 10_i128.pow(safe_scale),
+        _ => 10_i128.pow(30), // Fallback to 10^30 for any edge cases
+    }
+}
+
+/// Convert days since Unix epoch (1970-01-01) to a proper date string
+/// This function properly handles leap years and varying month lengths
+fn days_to_date_string(days_since_epoch: i32) -> String {
+    // Days per month (non-leap year)
+    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let mut days = days_since_epoch;
+    let mut year = 1970;
+
+    // Calculate year
+    while days >= 365 {
+        // Check if current year is a leap year
+        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+        let days_in_year = if is_leap { 366 } else { 365 };
+
+        if days >= days_in_year {
+            days -= days_in_year;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate month and day
+    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+    let mut month = 1;
+    let mut day = days + 1; // +1 because days are 0-indexed
+
+    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
+        let adjusted_days = if i == 1 && is_leap {
+            days_in_month + 1
+        } else {
+            days_in_month
+        };
+
+        if day <= adjusted_days {
+            break;
+        }
+        day -= adjusted_days;
+        month += 1;
+    }
+
+    format!("'{:04}-{:02}-{:02}'", year, month, day)
+}
+
+/// Convert nanoseconds since Unix epoch to a proper timestamp string
+/// This function properly handles leap years and varying month lengths
+fn nanoseconds_to_timestamp_string(nanoseconds_since_epoch: i64) -> String {
+    // Days per month (non-leap year)
+    const DAYS_IN_MONTH: [i32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
+    let days_since_epoch = nanoseconds_since_epoch / nanoseconds_per_day;
+    let remaining_ns = nanoseconds_since_epoch % nanoseconds_per_day;
+
+    let mut days = days_since_epoch as i32;
+    let mut year = 1970;
+
+    // Calculate year
+    while days >= 365 {
+        // Check if current year is a leap year
+        let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+        let days_in_year = if is_leap { 366 } else { 365 };
+
+        if days >= days_in_year {
+            days -= days_in_year;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+
+    // Calculate month and day
+    let is_leap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0);
+    let mut month = 1;
+    let mut day = days + 1; // +1 because days are 0-indexed
+
+    for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
+        let adjusted_days = if i == 1 && is_leap {
+            days_in_month + 1
+        } else {
+            days_in_month
+        };
+
+        if day <= adjusted_days {
+            break;
+        }
+        day -= adjusted_days;
+        month += 1;
+    }
+
+    // Calculate time components
+    let hours = remaining_ns / (60 * 60 * 1_000_000_000);
+    let remaining_ns = remaining_ns % (60 * 60 * 1_000_000_000);
+    let minutes = remaining_ns / (60 * 1_000_000_000);
+    let remaining_ns = remaining_ns % (60 * 1_000_000_000);
+    let seconds = remaining_ns / 1_000_000_000;
+    let nanoseconds = remaining_ns % 1_000_000_000;
+
+    format!(
+        "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09}'",
+        year, month, day, hours, minutes, seconds, nanoseconds
+    )
 }
 
 #[cfg(test)]
