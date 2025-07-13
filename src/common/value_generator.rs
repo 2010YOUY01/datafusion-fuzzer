@@ -282,10 +282,10 @@ mod tests {
         use crate::fuzz_context::RuntimeContext;
 
         let runtime_ctx = RuntimeContext::default();
-        let expected_config = ValueGenerationConfig::default(); // Non-nullable by default
+        let expected_config = ValueGenerationConfig::default(); // Nullable by default
 
         assert_eq!(runtime_ctx.value_generation_config, expected_config);
-        assert!(!runtime_ctx.value_generation_config.nullable); // Should be non-nullable
+        assert!(runtime_ctx.value_generation_config.nullable); // Should be nullable
     }
 
     #[test]

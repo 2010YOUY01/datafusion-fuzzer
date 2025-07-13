@@ -24,7 +24,7 @@ impl ExprWrapper {
     /// # Example
     ///
     /// For an expression wrapper like:
-    /// ```
+    /// ```text
     /// ExprWrapper {
     ///     expr: Add,
     ///     return_type: [Int64, Float64],

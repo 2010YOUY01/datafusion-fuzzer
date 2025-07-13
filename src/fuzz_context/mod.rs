@@ -256,7 +256,7 @@ impl RuntimeContext {
             df_ctx: Arc::new(RwLock::new(df_ctx)),
             registered_tables: Arc::new(RwLock::new(HashMap::new())),
             current_table_idx: AtomicU32::new(0),
-            value_generation_config: ValueGenerationConfig::default(), // Non-nullable by default
+            value_generation_config: ValueGenerationConfig::default(), // Nullable by default
         }
     }
 
@@ -265,7 +265,7 @@ impl RuntimeContext {
             df_ctx: Arc::new(RwLock::new(default_df_session_context())),
             registered_tables: Arc::new(RwLock::new(HashMap::new())),
             current_table_idx: AtomicU32::new(0),
-            value_generation_config: ValueGenerationConfig::default(), // Non-nullable by default
+            value_generation_config: ValueGenerationConfig::default(), // Nullable by default
         }
     }
 

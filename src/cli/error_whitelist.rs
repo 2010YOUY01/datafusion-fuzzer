@@ -19,20 +19,22 @@ pub enum ErrorPattern {
 ///
 /// ## Adding Exact String Patterns
 /// ```rust
+/// # use datafusion_fuzzer::cli::error_whitelist::ErrorPattern;
 /// // This will match any error containing "Arrow error: Divide by zero error"
-/// ErrorPattern::Exact("Arrow error: Divide by zero error")
+/// ErrorPattern::Contains("Arrow error: Divide by zero error");
 /// ```
 ///
 /// ## Adding Regex Patterns
 /// ```rust
+/// # use datafusion_fuzzer::cli::error_whitelist::ErrorPattern;
 /// // This will match any division by zero error with flexible formatting
-/// ErrorPattern::Regex(r"(?i)divide\s*by\s*zero")
+/// ErrorPattern::RegexMatch(r"(?i)divide\s*by\s*zero");
 ///
 /// // This will match any Arrow error with specific error codes
-/// ErrorPattern::Regex(r"Arrow error: (Divide by zero|Invalid argument)")
+/// ErrorPattern::RegexMatch(r"Arrow error: (Divide by zero|Invalid argument)");
 ///
 /// // This will match memory-related errors
-/// ErrorPattern::Regex(r"(?i)(out of memory|memory.*exhausted|allocation.*failed)")
+/// ErrorPattern::RegexMatch(r"(?i)(out of memory|memory.*exhausted|allocation.*failed)");
 /// ```
 ///
 /// ## Regex Pattern Tips

@@ -11,6 +11,11 @@ This is the instruction for LLM that is trying to modify the current codebase.
 
 1. If anything about the prompt is not clear, ask for clarification instead of
    modifying the code directly.
-2. After implementing one feature (don't run for every small changes), try to run:
+2. Before and after making changes, run unit tests to ensure nothing is broken:
+   cargo test
+   Note we want the tests easy to maintian, so we prefer end-to-end tests, and
+   avoid too many unit tests. Feel free to delete existing UTs if you thin they
+   are not very important. And when adding UTs, be very cautious!
+3. After implementing one feature (don't run for every small changes), try to run:
    cargo run -- --rounds 2 --queries-per-round 100
 ---
