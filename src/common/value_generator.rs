@@ -17,8 +17,9 @@ pub enum GeneratedValue {
         precision: u8,
         scale: i8,
     },
-    Date32(i32),           // Days since Unix epoch (1970-01-01)
-    Time64Nanosecond(i64), // Nanoseconds since midnight
+    Date32(i32),              // Days since Unix epoch (1970-01-01)
+    Time64Nanosecond(i64),    // Nanoseconds since midnight
+    TimestampNanosecond(i64), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC)
     Null,
 }
 
@@ -123,6 +124,17 @@ pub fn generate_value(
             let nanoseconds_since_midnight = rng.random_range(0..nanoseconds_per_day);
             GeneratedValue::Time64Nanosecond(nanoseconds_since_midnight)
         }
+        FuzzerDataType::TimestampNanosecond => {
+            // Generate a reasonable range of timestamps in nanoseconds since Unix epoch:
+            // - Start: 0 (1970-01-01 00:00:00 UTC)
+            // - End: approximately 100 years of nanoseconds from epoch
+            // - This gives us timestamps from 1970-01-01 to roughly 2070
+            let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
+            let days_in_100_years = 36500i64; // Approximate
+            let max_nanoseconds = nanoseconds_per_day * days_in_100_years;
+            let nanoseconds_since_epoch = rng.random_range(0..=max_nanoseconds);
+            GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch)
+        }
     }
 }
 
@@ -191,6 +203,35 @@ impl GeneratedValue {
                     hours, minutes, seconds, nanoseconds
                 )
             }
+            GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch) => {
+                // Convert nanoseconds since Unix epoch to SQL timestamp format
+                let ns = *nanoseconds_since_epoch;
+
+                // Calculate days, hours, minutes, seconds, and nanoseconds
+                let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
+                let days_since_epoch = ns / nanoseconds_per_day;
+                let remaining_ns = ns % nanoseconds_per_day;
+
+                // Calculate date components (simplified approach for fuzzing)
+                let year = 1970 + (days_since_epoch / 365);
+                let remaining_days = days_since_epoch % 365;
+                let month = 1 + (remaining_days / 30);
+                let day = 1 + (remaining_days % 30);
+
+                // Calculate time components
+                let hours = remaining_ns / (60 * 60 * 1_000_000_000);
+                let remaining_ns = remaining_ns % (60 * 60 * 1_000_000_000);
+                let minutes = remaining_ns / (60 * 1_000_000_000);
+                let remaining_ns = remaining_ns % (60 * 1_000_000_000);
+                let seconds = remaining_ns / 1_000_000_000;
+                let nanoseconds = remaining_ns % 1_000_000_000;
+
+                // Format as SQL timestamp literal with nanosecond precision
+                format!(
+                    "'{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:09}'",
+                    year, month, day, hours, minutes, seconds, nanoseconds
+                )
+            }
             GeneratedValue::Null => "NULL".to_string(),
         }
     }
@@ -222,6 +263,9 @@ impl GeneratedValue {
             }
             GeneratedValue::Date32(v) => ScalarValue::Date32(Some(*v)),
             GeneratedValue::Time64Nanosecond(v) => ScalarValue::Time64Nanosecond(Some(*v)),
+            GeneratedValue::TimestampNanosecond(v) => {
+                ScalarValue::TimestampNanosecond(Some(*v), None)
+            }
             GeneratedValue::Null => ScalarValue::Null,
         }
     }
@@ -262,5 +306,90 @@ mod tests {
             }
             _ => panic!("Expected Int32 value, got: {:?}", value),
         }
+    }
+
+    #[test]
+    fn test_timestamp_nanosecond_generation() {
+        // Test that TimestampNanosecond generation works correctly
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+        let runtime_ctx = RuntimeContext::default();
+
+        let value = generate_value(&mut rng, &fuzzer_type, &runtime_ctx.value_generation_config);
+
+        // Should generate a TimestampNanosecond value
+        match value {
+            GeneratedValue::TimestampNanosecond(v) => {
+                assert!(v >= 0, "Timestamp should be non-negative");
+                // Check that it's a reasonable timestamp (not too far in the future)
+                let max_ns = 24 * 60 * 60 * 1_000_000_000i64 * 36500; // ~100 years
+                assert!(v <= max_ns, "Timestamp should be within reasonable range");
+            }
+            _ => panic!("Expected TimestampNanosecond value, got: {:?}", value),
+        }
+
+        // Test SQL string generation
+        let sql_string = value.to_sql_string();
+        assert!(
+            sql_string.starts_with("'"),
+            "SQL string should start with quote"
+        );
+        assert!(
+            sql_string.ends_with("'"),
+            "SQL string should end with quote"
+        );
+        assert!(
+            sql_string.contains("-"),
+            "SQL string should contain date separators"
+        );
+        assert!(
+            sql_string.contains(":"),
+            "SQL string should contain time separators"
+        );
+
+        // Test DataFusion ScalarValue conversion
+        let scalar_value = value.to_scalar_value();
+        assert!(
+            matches!(
+                scalar_value,
+                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), None)
+            ),
+            "Should convert to TimestampNanosecond ScalarValue"
+        );
+    }
+
+    #[test]
+    fn test_timestamp_type_conversions() {
+        // Test that TimestampNanosecond type conversions work correctly
+        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+
+        // Test conversion to DataFusion type
+        let df_type = fuzzer_type.to_datafusion_type();
+        assert!(
+            matches!(
+                df_type,
+                datafusion::arrow::datatypes::DataType::Timestamp(
+                    datafusion::arrow::datatypes::TimeUnit::Nanosecond,
+                    None
+                )
+            ),
+            "Should convert to Timestamp(Nanosecond, None)"
+        );
+
+        // Test round-trip conversion
+        let back_to_fuzzer = FuzzerDataType::from_datafusion_type(&df_type);
+        assert_eq!(
+            back_to_fuzzer,
+            Some(fuzzer_type.clone()),
+            "Round-trip conversion should work"
+        );
+
+        // Test properties
+        assert_eq!(fuzzer_type.display_name(), "timestamp_nanosecond");
+        assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMP");
+        assert!(fuzzer_type.is_time());
+        assert!(!fuzzer_type.is_numeric());
     }
 }

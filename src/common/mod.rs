@@ -40,6 +40,8 @@ pub enum FuzzerDataType {
     Date32,
     // Time64 with nanosecond precision, following DataFusion specification
     Time64Nanosecond,
+    // Timestamp with nanosecond precision and no timezone
+    TimestampNanosecond,
 }
 
 impl FuzzerDataType {
@@ -66,6 +68,9 @@ impl FuzzerDataType {
             FuzzerDataType::Date32 => DataType::Date32,
             FuzzerDataType::Time64Nanosecond => {
                 DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond)
+            }
+            FuzzerDataType::TimestampNanosecond => {
+                DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None)
             }
         }
     }
@@ -94,6 +99,9 @@ impl FuzzerDataType {
             DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond) => {
                 Some(FuzzerDataType::Time64Nanosecond)
             }
+            DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None) => {
+                Some(FuzzerDataType::TimestampNanosecond)
+            }
             _ => None,
         }
     }
@@ -111,6 +119,7 @@ impl FuzzerDataType {
             FuzzerDataType::Decimal { .. } => "decimal128",
             FuzzerDataType::Date32 => "date32",
             FuzzerDataType::Time64Nanosecond => "time64_nanosecond",
+            FuzzerDataType::TimestampNanosecond => "timestamp_nanosecond",
         }
     }
 
@@ -126,6 +135,7 @@ impl FuzzerDataType {
             FuzzerDataType::Boolean => false,
             FuzzerDataType::Date32 => false,
             FuzzerDataType::Time64Nanosecond => false,
+            FuzzerDataType::TimestampNanosecond => false,
         }
     }
 
@@ -133,6 +143,7 @@ impl FuzzerDataType {
         match self {
             FuzzerDataType::Date32 => true,
             FuzzerDataType::Time64Nanosecond => true,
+            FuzzerDataType::TimestampNanosecond => true,
             FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32
@@ -176,6 +187,7 @@ impl FuzzerDataType {
             }
             FuzzerDataType::Date32 => "DATE",
             FuzzerDataType::Time64Nanosecond => "TIME",
+            FuzzerDataType::TimestampNanosecond => "TIMESTAMP",
         }
     }
 }
@@ -214,6 +226,7 @@ pub fn init_available_data_types() {
             // They will be re-enabled once the upstream casting bugs are fixed
             FuzzerDataType::Date32,
             FuzzerDataType::Time64Nanosecond,
+            FuzzerDataType::TimestampNanosecond,
         ]
     });
 }

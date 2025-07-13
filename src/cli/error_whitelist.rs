@@ -66,6 +66,8 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::RegexMatch(
             r"(?i)Query execution failed: Arrow error: Cast error: value of (.+) is out of range uint(.+)",
         ),
+        // timestamp * timestamp
+        ErrorPattern::Contains("Invalid timestamp arithmetic operation"),
         // =========================
         // Known Issues
         // =========================
