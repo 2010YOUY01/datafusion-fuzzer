@@ -10,6 +10,16 @@ use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types}
 /// - [ ] Bitwise Operators: &, |, #, >>, <<
 /// - [ ] Other Operators: || (concat), @> (contains), <@ (contained by)
 
+// The following implementation includes several simplifications:
+// The generation strategy aims to produce valid expressions with best effort;
+// however, allowing the generation of invalid expressions can be beneficial if
+// it simplifies the implementation.
+//
+// For date types, not all combinations in arithmetic expressions are valid:
+// - Date32 + Date32 is invalid
+// - Date32 + Interval is valid
+// Nevertheless, we allow generating all combinations for simplicity.
+
 // ========================
 // Numeric Operators
 // ========================

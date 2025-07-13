@@ -38,6 +38,8 @@ pub enum FuzzerDataType {
     // When precision is [39, 76], the physical type in DF is Decimal256.
     Decimal { precision: u8, scale: i8 },
     Date32,
+    // Time64 with nanosecond precision, following DataFusion specification
+    Time64Nanosecond,
 }
 
 impl FuzzerDataType {
@@ -62,6 +64,9 @@ impl FuzzerDataType {
                 }
             }
             FuzzerDataType::Date32 => DataType::Date32,
+            FuzzerDataType::Time64Nanosecond => {
+                DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond)
+            }
         }
     }
 
@@ -86,6 +91,9 @@ impl FuzzerDataType {
                 scale: *scale,
             }),
             DataType::Date32 => Some(FuzzerDataType::Date32),
+            DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond) => {
+                Some(FuzzerDataType::Time64Nanosecond)
+            }
             _ => None,
         }
     }
@@ -102,6 +110,7 @@ impl FuzzerDataType {
             FuzzerDataType::Boolean => "boolean",
             FuzzerDataType::Decimal { .. } => "decimal128",
             FuzzerDataType::Date32 => "date32",
+            FuzzerDataType::Time64Nanosecond => "time64_nanosecond",
         }
     }
 
@@ -116,12 +125,14 @@ impl FuzzerDataType {
             | FuzzerDataType::Decimal { .. } => true,
             FuzzerDataType::Boolean => false,
             FuzzerDataType::Date32 => false,
+            FuzzerDataType::Time64Nanosecond => false,
         }
     }
 
     pub fn is_time(&self) -> bool {
         match self {
             FuzzerDataType::Date32 => true,
+            FuzzerDataType::Time64Nanosecond => true,
             FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32
@@ -164,6 +175,7 @@ impl FuzzerDataType {
                 "DECIMAL"
             }
             FuzzerDataType::Date32 => "DATE",
+            FuzzerDataType::Time64Nanosecond => "TIME",
         }
     }
 }
@@ -201,6 +213,7 @@ pub fn init_available_data_types() {
             // Note: Decimal256 types (precision > 38) currently cause casting issues in DataFusion
             // They will be re-enabled once the upstream casting bugs are fixed
             FuzzerDataType::Date32,
+            FuzzerDataType::Time64Nanosecond,
         ]
     });
 }

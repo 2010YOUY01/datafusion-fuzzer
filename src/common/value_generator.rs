@@ -17,7 +17,8 @@ pub enum GeneratedValue {
         precision: u8,
         scale: i8,
     },
-    Date32(i32), // Days since Unix epoch (1970-01-01)
+    Date32(i32),           // Days since Unix epoch (1970-01-01)
+    Time64Nanosecond(i64), // Nanoseconds since midnight
     Null,
 }
 
@@ -114,6 +115,14 @@ pub fn generate_value(
             let days_since_epoch = rng.random_range(0..=36500);
             GeneratedValue::Date32(days_since_epoch)
         }
+        FuzzerDataType::Time64Nanosecond => {
+            // Generate a reasonable range of times in nanoseconds since midnight:
+            // - 0 to 86,399,999,999,999 nanoseconds (24 hours in nanoseconds)
+            // - This covers the full range of a day from 00:00:00 to 23:59:59.999999999
+            let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64; // 24 hours in nanoseconds
+            let nanoseconds_since_midnight = rng.random_range(0..nanoseconds_per_day);
+            GeneratedValue::Time64Nanosecond(nanoseconds_since_midnight)
+        }
     }
 }
 
@@ -160,7 +169,27 @@ impl GeneratedValue {
                 let month = 1 + (remaining_days / 30);
                 let day = 1 + (remaining_days % 30);
 
+                // TODO(coverage): we can inject some invalid dates like 2025/2/31
+
                 format!("'{:04}-{:02}-{:02}'", year, month, day)
+            }
+            GeneratedValue::Time64Nanosecond(nanoseconds) => {
+                // Convert nanoseconds since midnight to SQL time format (HH:MM:SS.nnnnnnnnn)
+                let ns = *nanoseconds;
+
+                // Calculate hours, minutes, seconds, and nanoseconds
+                let hours = ns / (60 * 60 * 1_000_000_000);
+                let remaining_ns = ns % (60 * 60 * 1_000_000_000);
+                let minutes = remaining_ns / (60 * 1_000_000_000);
+                let remaining_ns = remaining_ns % (60 * 1_000_000_000);
+                let seconds = remaining_ns / 1_000_000_000;
+                let nanoseconds = remaining_ns % 1_000_000_000;
+
+                // Format as SQL time literal with nanosecond precision
+                format!(
+                    "'{:02}:{:02}:{:02}.{:09}'",
+                    hours, minutes, seconds, nanoseconds
+                )
             }
             GeneratedValue::Null => "NULL".to_string(),
         }
@@ -192,6 +221,7 @@ impl GeneratedValue {
                 }
             }
             GeneratedValue::Date32(v) => ScalarValue::Date32(Some(*v)),
+            GeneratedValue::Time64Nanosecond(v) => ScalarValue::Time64Nanosecond(Some(*v)),
             GeneratedValue::Null => ScalarValue::Null,
         }
     }
