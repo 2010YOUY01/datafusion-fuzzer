@@ -72,6 +72,8 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("Invalid timestamp arithmetic operation"),
         // Query timeout
         ErrorPattern::Contains("Query execution timed out"),
+        // Create view might fail
+        ErrorPattern::Contains("Failed to create view"),
         // =========================
         // Known Issues
         // =========================

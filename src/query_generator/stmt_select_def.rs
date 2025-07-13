@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{prelude::Expr, sql::unparser::expr_to_sql};
-use rand::prelude::IndexedRandom;
+// Removed unused import: IndexedRandom
 use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
@@ -153,6 +153,9 @@ impl SelectStatementBuilder {
     pub fn pick_src_tables(&mut self) -> Result<()> {
         // TODO: Support duplicate table like `... from t1, t1 as t1_2` in the future
 
+        // Clear existing tables to avoid accumulation when builder is reused
+        self.src_tables.clear();
+
         // ==== Pick some unique tables and store inside builder ====
         // Use local override if available, otherwise use global config
         let cfg_max_table_count = self
@@ -176,11 +179,19 @@ impl SelectStatementBuilder {
         // Determine how many tables to pick (bounded by available tables)
         let num_tables = std::cmp::min(num_src_tables, available_tables.len() as u32) as usize;
 
-        // Use sample API for more elegant random selection
-        let selected_tables = available_tables
-            .choose_multiple(&mut self.rng, num_tables)
-            .map(|table| (**table).clone())
-            .collect::<Vec<_>>();
+        // Use sample API for more elegant random selection without replacement
+        // to avoid duplicate tables in the FROM clause
+        let mut available_tables_clone = available_tables.clone();
+        let mut selected_tables = Vec::new();
+
+        for _ in 0..num_tables {
+            if available_tables_clone.is_empty() {
+                break;
+            }
+            let index = self.rng.random_range(0..available_tables_clone.len());
+            let table = available_tables_clone.remove(index);
+            selected_tables.push((*table).clone());
+        }
 
         self.src_tables.extend(selected_tables);
 
