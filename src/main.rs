@@ -38,6 +38,7 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Run the fuzzer
     run_fuzzer(global_context.clone()).await?;
 
     print_final_stats(&global_context.fuzzer_stats);
@@ -177,7 +178,7 @@ fn print_final_stats(fuzzer_stats: &Arc<std::sync::Mutex<FuzzerStats>>) {
     println!("  • Query Success Rate: {:.2}%", stats.success_rate);
     println!("  • Queries Per Second: {:.2}", stats.queries_per_second);
     println!(
-        "  • Slow Queries: {} ({:.2}%)",
+        "  • Slow Queries (>=90% of timeout): {} ({:.2}%)",
         stats.queries_slow,
         if stats.queries_executed > 0 {
             (stats.queries_slow as f64 / stats.queries_executed as f64) * 100.0
@@ -228,4 +229,7 @@ fn print_final_stats(fuzzer_stats: &Arc<std::sync::Mutex<FuzzerStats>>) {
 
     println!("{}", "=".repeat(60));
     println!("✅ Fuzzing completed successfully!");
+    println!(
+        "⚠️  The program might be stuck if there are timed out queries. Please press Ctrl+C to exit."
+    );
 }

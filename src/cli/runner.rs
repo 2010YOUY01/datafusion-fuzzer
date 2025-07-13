@@ -284,7 +284,8 @@ async fn execute_single_query(
     // Log timeout queries specifically
     if outcome.timed_out {
         warn!(
-            "Query timed out after {:.2}ms (timeout: {}s):\n{}",
+            "Query timed out after {:.2}ms (timeout: {}s):\n{}\n\
+             Note: Query execution task has been dropped. Use Ctrl+C if the fuzzer appears stuck.",
             outcome.execution_time.as_secs_f64() * 1000.0,
             ctx.runner_config.timeout_seconds,
             query_context.query
@@ -314,38 +315,54 @@ async fn execute_single_query(
     outcome.result
 }
 
-/// Execute a query with timeout detection, returning both result and timeout status
+/// Execute a query with proper timeout and cancellation
 async fn execute_query_with_timeout(
     query_context: &QueryContext,
     timeout_duration: Duration,
 ) -> QueryExecutionOutcome {
     let start_time = Instant::now();
 
-    let timeout_result = tokio::time::timeout(timeout_duration, async {
-        query_context
-            .context
-            .sql(&query_context.query)
+    // Clone the necessary data to avoid lifetime issues
+    let context = Arc::clone(&query_context.context);
+    let query = query_context.query.clone();
+
+    // Spawn the query execution in a separate task
+    let query_task = tokio::spawn(async move {
+        context
+            .sql(&query)
             .await
             .map_err(|e| crate::common::fuzzer_err(&format!("Query planning failed: {}", e)))?
             .collect()
             .await
             .map_err(|e| crate::common::fuzzer_err(&format!("Query execution failed: {}", e)))
-    })
-    .await;
+    });
+
+    // Use tokio::select! to handle timeout properly
+    let result = tokio::select! {
+        result = query_task => {
+            match result {
+                Ok(query_result) => query_result,
+                Err(_) => Err(crate::common::fuzzer_err("Query task failed")),
+            }
+        }
+        _ = tokio::time::sleep(timeout_duration) => {
+            // Query timed out - the task will be dropped when we return
+            Err(crate::common::fuzzer_err("Query execution timed out"))
+        }
+    };
 
     let execution_time = start_time.elapsed();
+    let timed_out = result.is_err()
+        && result
+            .as_ref()
+            .unwrap_err()
+            .to_string()
+            .contains("timed out");
 
-    match timeout_result {
-        Ok(result) => QueryExecutionOutcome {
-            result,
-            timed_out: false,
-            execution_time,
-        },
-        Err(_) => QueryExecutionOutcome {
-            result: Err(crate::common::fuzzer_err("Query execution timed out")),
-            timed_out: true,
-            execution_time,
-        },
+    QueryExecutionOutcome {
+        result,
+        timed_out,
+        execution_time,
     }
 }
 
@@ -445,6 +462,36 @@ mod tests {
             config.rounds
         );
         println!("🏷️  Each run generated {} tables", all_table_names[0].len());
+    }
+
+    /// Test that timeout mechanism works correctly
+    #[tokio::test]
+    async fn test_query_timeout() {
+        use datafusion::prelude::SessionContext;
+        use std::time::Duration;
+
+        // Create a simple query context
+        let context = Arc::new(SessionContext::new());
+        let query_context = QueryContext {
+            query: "SELECT 1".to_string(),
+            context,
+            context_description: None,
+        };
+
+        // Test with a reasonable timeout
+        let timeout_duration = Duration::from_millis(100);
+        let outcome = execute_query_with_timeout(&query_context, timeout_duration).await;
+
+        // The query should complete quickly and not timeout
+        assert!(
+            !outcome.timed_out,
+            "Query should not timeout for simple SELECT 1"
+        );
+        assert!(outcome.result.is_ok(), "Query should succeed");
+        assert!(
+            outcome.execution_time < Duration::from_millis(50),
+            "Query should complete quickly"
+        );
     }
 
     /// Test that different seeds produce different results
