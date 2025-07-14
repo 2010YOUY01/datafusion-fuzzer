@@ -25,8 +25,10 @@ pub mod value_generator;
 
 // TODO(coverage): Support `Duration` time, which is not a standard SQL type,
 // but supported in Arrow.
-/// Make it easier to manage supported DataFusion data types.
-/// I can't remember why I added this indrection...
+
+/// FuzzerDataType is a logical type, it won't include detail value like the
+/// timezone string inside `Timestamp` type. Those details will be specified
+/// inside `GeneartedValue` type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FuzzerDataType {
     Int32,
@@ -38,14 +40,12 @@ pub enum FuzzerDataType {
     Boolean,
     // When precision is [1, 38], the physical type in DF is Decimal128.
     // When precision is [39, 76], the physical type in DF is Decimal256.
-    Decimal { precision: u8, scale: i8 },
+    Decimal,
     Date32,
     // Time64 with nanosecond precision, following DataFusion specification
     Time64Nanosecond,
-    // Timestamp with nanosecond precision and no timezone
-    TimestampNanosecond,
-    // Timestamp with nanosecond precision and timezone
-    TimestampNanosecondTz { tz: String },
+    // Timestamp with nanosecond precision
+    Timestamp,
     // Interval with month, day, and nanosecond components
     IntervalMonthDayNano,
 }
@@ -61,27 +61,22 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => DataType::Float32,
             FuzzerDataType::Float64 => DataType::Float64,
             FuzzerDataType::Boolean => DataType::Boolean,
-            FuzzerDataType::Decimal { precision, scale } => {
+            FuzzerDataType::Decimal => {
                 // DataFusion automatically chooses the best internal representation:
                 // - Decimal128 for precision 1-38
                 // - Decimal256 for precision 39-76
-                if *precision <= 38 {
-                    DataType::Decimal128(*precision, *scale)
-                } else {
-                    DataType::Decimal256(*precision, *scale)
-                }
+                // Since we don't have precision/scale in the type definition,
+                // we'll use a default Decimal type for schema definition
+                // The actual precision/scale will be determined when generating values
+                DataType::Decimal128(10, 2) // Default precision and scale
             }
             FuzzerDataType::Date32 => DataType::Date32,
             FuzzerDataType::Time64Nanosecond => {
                 DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond)
             }
-            FuzzerDataType::TimestampNanosecond => {
+            FuzzerDataType::Timestamp => {
                 DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None)
             }
-            FuzzerDataType::TimestampNanosecondTz { tz } => DataType::Timestamp(
-                datafusion::arrow::datatypes::TimeUnit::Nanosecond,
-                Some(std::sync::Arc::from(tz.as_str())),
-            ),
             FuzzerDataType::IntervalMonthDayNano => {
                 DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano)
             }
@@ -100,23 +95,14 @@ impl FuzzerDataType {
             DataType::Boolean => Some(FuzzerDataType::Boolean),
             // Handle both Decimal128 and Decimal256 as the same fuzzer type
             // DataFusion automatically chooses the appropriate internal representation
-            DataType::Decimal128(precision, scale) => Some(FuzzerDataType::Decimal {
-                precision: *precision,
-                scale: *scale,
-            }),
-            DataType::Decimal256(precision, scale) => Some(FuzzerDataType::Decimal {
-                precision: *precision,
-                scale: *scale,
-            }),
+            DataType::Decimal128(_precision, _scale) => Some(FuzzerDataType::Decimal),
+            DataType::Decimal256(_precision, _scale) => Some(FuzzerDataType::Decimal),
             DataType::Date32 => Some(FuzzerDataType::Date32),
             DataType::Time64(datafusion::arrow::datatypes::TimeUnit::Nanosecond) => {
                 Some(FuzzerDataType::Time64Nanosecond)
             }
-            DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None) => {
-                Some(FuzzerDataType::TimestampNanosecond)
-            }
-            DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, Some(tz)) => {
-                Some(FuzzerDataType::TimestampNanosecondTz { tz: tz.to_string() })
+            DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, _tz) => {
+                Some(FuzzerDataType::Timestamp)
             }
             DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano) => {
                 Some(FuzzerDataType::IntervalMonthDayNano)
@@ -135,11 +121,10 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => "float32",
             FuzzerDataType::Float64 => "float64",
             FuzzerDataType::Boolean => "boolean",
-            FuzzerDataType::Decimal { .. } => "decimal128",
+            FuzzerDataType::Decimal => "decimal128",
             FuzzerDataType::Date32 => "date32",
             FuzzerDataType::Time64Nanosecond => "time64_nanosecond",
-            FuzzerDataType::TimestampNanosecond => "timestamp_nanosecond",
-            FuzzerDataType::TimestampNanosecondTz { .. } => "timestamp_nanosecond_tz",
+            FuzzerDataType::Timestamp => "timestamp",
             FuzzerDataType::IntervalMonthDayNano => "interval_month_day_nano",
         }
     }
@@ -152,12 +137,11 @@ impl FuzzerDataType {
             | FuzzerDataType::UInt64
             | FuzzerDataType::Float32
             | FuzzerDataType::Float64
-            | FuzzerDataType::Decimal { .. } => true,
+            | FuzzerDataType::Decimal => true,
             FuzzerDataType::Boolean => false,
             FuzzerDataType::Date32 => false,
             FuzzerDataType::Time64Nanosecond => false,
-            FuzzerDataType::TimestampNanosecond => false,
-            FuzzerDataType::TimestampNanosecondTz { .. } => false,
+            FuzzerDataType::Timestamp { .. } => false,
             FuzzerDataType::IntervalMonthDayNano => false,
         }
     }
@@ -166,8 +150,7 @@ impl FuzzerDataType {
         match self {
             FuzzerDataType::Date32 => true,
             FuzzerDataType::Time64Nanosecond => true,
-            FuzzerDataType::TimestampNanosecond => true,
-            FuzzerDataType::TimestampNanosecondTz { .. } => true,
+            FuzzerDataType::Timestamp { .. } => true,
             FuzzerDataType::IntervalMonthDayNano => true,
             FuzzerDataType::Int32
             | FuzzerDataType::Int64
@@ -176,19 +159,14 @@ impl FuzzerDataType {
             | FuzzerDataType::Float32
             | FuzzerDataType::Float64
             | FuzzerDataType::Boolean
-            | FuzzerDataType::Decimal { .. } => false,
+            | FuzzerDataType::Decimal => false,
         }
     }
 
-    /// Create a random Decimal128 type with valid precision and scale
-    pub fn random_decimal128<R: rand::Rng>(rng: &mut R) -> Self {
-        // Use reasonable precision and scale values for testing
-        // Precision: 1-76 (maximum for Decimal256, DataFusion auto-chooses implementation)
-        let precision = rng.random_range(1..=76);
-        // Scale: 0 to precision (can't exceed precision)
-        let scale = rng.random_range(0..=precision as i8);
-
-        FuzzerDataType::Decimal { precision, scale }
+    /// Create a random Decimal type
+    /// Note: Precision and scale are now generated when creating values, not when defining the type
+    pub fn random_decimal<R: rand::Rng>(_rng: &mut R) -> Self {
+        FuzzerDataType::Decimal
     }
 
     /// Convert to SQL type string for CREATE TABLE statements
@@ -201,19 +179,16 @@ impl FuzzerDataType {
             FuzzerDataType::Float32 => "FLOAT",
             FuzzerDataType::Float64 => "DOUBLE",
             FuzzerDataType::Boolean => "BOOLEAN",
-            FuzzerDataType::Decimal {
-                precision: _,
-                scale: _,
-            } => {
+            FuzzerDataType::Decimal => {
                 // Note: This is a simplified approach. In a real implementation,
                 // you might want to cache these strings or use a more sophisticated approach
                 // For now, we'll use a default DECIMAL type
+                // The actual precision and scale will be determined when generating values
                 "DECIMAL"
             }
             FuzzerDataType::Date32 => "DATE",
             FuzzerDataType::Time64Nanosecond => "TIME",
-            FuzzerDataType::TimestampNanosecond => "TIMESTAMP",
-            FuzzerDataType::TimestampNanosecondTz { .. } => "TIMESTAMPTZ",
+            FuzzerDataType::Timestamp => "TIMESTAMP",
             FuzzerDataType::IntervalMonthDayNano => "INTERVAL",
         }
     }
@@ -238,34 +213,14 @@ pub fn init_available_data_types() {
             FuzzerDataType::Float32,
             FuzzerDataType::Float64,
             FuzzerDataType::Boolean,
-            // Add decimal types with various precisions for testing
-            // These will automatically use Decimal128 or Decimal256 internally
-            FuzzerDataType::Decimal {
-                precision: 10,
-                scale: 2,
-            }, // Common currency format (Decimal128)
-            FuzzerDataType::Decimal {
-                precision: 18,
-                scale: 4,
-            }, // Higher precision (Decimal128)
-            FuzzerDataType::Decimal {
-                precision: 38,
-                scale: 10,
-            }, // Max Decimal128 precision
+            // Add decimal type for testing
+            // Precision and scale will be generated when creating values
+            FuzzerDataType::Decimal,
             // Note: Decimal256 types (precision > 38) currently cause casting issues in DataFusion
             // They will be re-enabled once the upstream casting bugs are fixed
             FuzzerDataType::Date32,
             FuzzerDataType::Time64Nanosecond,
-            FuzzerDataType::TimestampNanosecond,
-            FuzzerDataType::TimestampNanosecondTz {
-                tz: "UTC".to_string(),
-            },
-            FuzzerDataType::TimestampNanosecondTz {
-                tz: "+08:00".to_string(),
-            },
-            FuzzerDataType::TimestampNanosecondTz {
-                tz: "America/New_York".to_string(),
-            },
+            FuzzerDataType::Timestamp,
             FuzzerDataType::IntervalMonthDayNano,
         ]
     });
@@ -370,4 +325,71 @@ impl From<io::Error> for FuzzerError {
 // Helper functions to create FuzzerError easily
 pub fn fuzzer_err(msg: &str) -> FuzzerError {
     FuzzerError::FuzzerError(msg.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::rng::rng_from_seed;
+
+    #[test]
+    fn test_simplified_decimal_type() {
+        // Test that the simplified Decimal type works correctly
+        let decimal_type = FuzzerDataType::Decimal;
+
+        // Test display name
+        assert_eq!(decimal_type.display_name(), "decimal128");
+
+        // Test is_numeric
+        assert!(decimal_type.is_numeric());
+
+        // Test is_time
+        assert!(!decimal_type.is_time());
+
+        // Test SQL type
+        assert_eq!(decimal_type.to_sql_type(), "DECIMAL");
+
+        // Test DataFusion type conversion
+        let df_type = decimal_type.to_datafusion_type();
+        match df_type {
+            DataType::Decimal128(precision, scale) => {
+                assert_eq!(precision, 10);
+                assert_eq!(scale, 2);
+            }
+            _ => panic!("Expected Decimal128 type"),
+        }
+    }
+
+    #[test]
+    fn test_decimal_value_generation() {
+        // Test that decimal values are generated with random precision and scale
+        use crate::common::value_generator::{
+            ValueGenerationConfig, generate_value, safe_power_of_10,
+        };
+
+        let mut rng = rng_from_seed(42);
+        let mut config = ValueGenerationConfig::default();
+        config.nullable = false;
+
+        for _ in 0..10 {
+            let value = generate_value(&mut rng, &FuzzerDataType::Decimal, &config);
+
+            match value {
+                crate::common::value_generator::GeneratedValue::Decimal {
+                    value,
+                    precision,
+                    scale,
+                } => {
+                    // Check that precision and scale are within valid ranges
+                    assert!(precision >= 1 && precision <= 76);
+                    assert!(scale >= 0 && scale <= precision as i8);
+                    assert!(
+                        value >= -99999 * safe_power_of_10(scale)
+                            && value <= 99999 * safe_power_of_10(scale)
+                    );
+                }
+                other => panic!("Expected Decimal value, got: {:?}", other),
+            }
+        }
+    }
 }

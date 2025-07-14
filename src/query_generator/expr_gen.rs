@@ -1,12 +1,6 @@
 use std::sync::Arc;
 
-use datafusion::{
-    arrow::datatypes::DataType,
-    common::Column,
-    logical_expr::{BinaryExpr, Operator},
-    prelude::Expr,
-    sql::TableReference,
-};
+use datafusion::{arrow::datatypes::DataType, common::Column, prelude::Expr, sql::TableReference};
 use rand::{Rng, rngs::StdRng};
 
 use crate::{
@@ -163,42 +157,7 @@ impl ExprGenerator {
     /// , because invalid expression (like `true + 1`) can provide more test coverage.
     fn build_with_childs(&self, base_expr: BaseExpr, child_exprs: &[Expr]) -> Expr {
         // TODO: validate the number of `child_exprs`
-        match base_expr {
-            BaseExpr::Add => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Plus,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::Sub => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Minus,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::Mul => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Multiply,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::Div => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Divide,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::Mod => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Modulo,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::And => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::And,
-                Box::new(child_exprs[1].clone()),
-            )),
-            BaseExpr::Or => Expr::BinaryExpr(BinaryExpr::new(
-                Box::new(child_exprs[0].clone()),
-                Operator::Or,
-                Box::new(child_exprs[1].clone()),
-            )),
-        }
+        let expr_impl = base_expr.to_impl();
+        expr_impl.build_expr(child_exprs)
     }
 }

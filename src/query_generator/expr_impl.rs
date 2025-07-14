@@ -1,4 +1,5 @@
 use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
 
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
 use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types};
@@ -41,6 +42,14 @@ impl BaseExprWithInfo for AddExpr {
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
     }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Plus,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
 }
 
 pub struct SubExpr;
@@ -61,6 +70,14 @@ impl BaseExprWithInfo for SubExpr {
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
     }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Minus,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
 }
 
 // TODO(confirm): I think *, /, % are not available for time types?
@@ -80,6 +97,14 @@ impl BaseExprWithInfo for MulExpr {
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
     }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Multiply,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
 }
 
 pub struct DivExpr;
@@ -97,6 +122,14 @@ impl BaseExprWithInfo for DivExpr {
             return_type: return_types,
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Divide,
+            Box::new(child_exprs[1].clone()),
+        ))
     }
 }
 
@@ -116,6 +149,14 @@ impl BaseExprWithInfo for ModExpr {
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
     }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Modulo,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
 }
 
 // ========================
@@ -132,6 +173,14 @@ impl BaseExprWithInfo for AndExpr {
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
     }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::And,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
 }
 
 pub struct OrExpr;
@@ -144,5 +193,13 @@ impl BaseExprWithInfo for OrExpr {
             return_type: return_types,
             inferred_child_signature: vec![vec![TypeGroup::SameAsOutput, TypeGroup::SameAsOutput]],
         }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Or,
+            Box::new(child_exprs[1].clone()),
+        ))
     }
 }

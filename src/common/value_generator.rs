@@ -18,11 +18,10 @@ pub enum GeneratedValue {
         precision: u8,
         scale: i8,
     },
-    Date32(i32),                        // Days since Unix epoch (1970-01-01)
-    Time64Nanosecond(i64),              // Nanoseconds since midnight
-    TimestampNanosecond(i64),           // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC)
-    TimestampNanosecondTz(i64, String), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC) with timezone
-    IntervalMonthDayNano(i128),         // MonthDayNano interval as i128 (months, days, nanoseconds)
+    Date32(i32),                    // Days since Unix epoch (1970-01-01)
+    Time64Nanosecond(i64),          // Nanoseconds since midnight
+    Timestamp(i64, Option<String>), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC) with optional timezone
+    IntervalMonthDayNano(i128),     // MonthDayNano interval as i128 (months, days, nanoseconds)
     Null,
 }
 
@@ -88,16 +87,22 @@ pub fn generate_value(
             let value = rng.random_bool(0.5);
             GeneratedValue::Boolean(value)
         }
-        FuzzerDataType::Decimal { precision, scale } => {
+        FuzzerDataType::Decimal => {
+            // Generate random precision and scale for decimal values
+            // Precision: 1-76 (maximum for Decimal256, DataFusion auto-chooses implementation)
+            let precision = rng.random_range(1..=76);
+            // Scale: 0 to precision (can't exceed precision)
+            let scale = rng.random_range(0..=precision as i8);
+
             // Use the existing safe decimal generation logic
             let simple_value = rng.random_range(-99999..=99999);
-            let scale_factor = safe_power_of_10(*scale);
+            let scale_factor = safe_power_of_10(scale);
             let decimal_value = simple_value * scale_factor;
 
             GeneratedValue::Decimal {
                 value: decimal_value,
-                precision: *precision,
-                scale: *scale,
+                precision,
+                scale,
             }
         }
         FuzzerDataType::Date32 => {
@@ -115,7 +120,7 @@ pub fn generate_value(
             let nanoseconds_since_midnight = rng.random_range(0..nanoseconds_per_day);
             GeneratedValue::Time64Nanosecond(nanoseconds_since_midnight)
         }
-        FuzzerDataType::TimestampNanosecond => {
+        FuzzerDataType::Timestamp => {
             // Generate a reasonable range of timestamps in nanoseconds since Unix epoch:
             // - Start: 0 (1970-01-01 00:00:00 UTC)
             // - End: approximately 100 years of nanoseconds from epoch
@@ -124,30 +129,20 @@ pub fn generate_value(
             let days_in_100_years = 36500i64; // Approximate
             let max_nanoseconds = nanoseconds_per_day * days_in_100_years;
             let nanoseconds_since_epoch = rng.random_range(0..=max_nanoseconds);
-            GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch)
-        }
-        FuzzerDataType::TimestampNanosecondTz { tz } => {
-            // Generate a reasonable range of timestamps with timezone in nanoseconds since Unix epoch:
-            // - Start: 0 (1970-01-01 00:00:00 UTC)
-            // - End: approximately 100 years of nanoseconds from epoch
-            // - This gives us timestamps from 1970-01-01 to roughly 2070
-            let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
-            let days_in_100_years = 36500i64; // Approximate
-            let max_nanoseconds = nanoseconds_per_day * days_in_100_years;
-            let nanoseconds_since_epoch = rng.random_range(0..=max_nanoseconds);
-            // Pick a random timezone from a small set
-            let timezones = [
-                "UTC",
-                "+08:00",
-                "-05:00",
-                "+02:00",
-                "America/New_York",
-                "Europe/London",
-                "Asia/Tokyo",
-                "Australia/Sydney",
+
+            // Randomly decide whether to add a timezone
+            let timezones = vec![
+                None,
+                Some("UTC".to_string()),
+                Some("+09:00".to_string()),
+                Some("-09".to_string()),
+                Some("+0930".to_string()),
+                Some("America/New_York".to_string()),
             ];
-            let tz = timezones[rng.random_range(0..timezones.len())].to_string();
-            GeneratedValue::TimestampNanosecondTz(nanoseconds_since_epoch, tz)
+            let timezone_index = rng.random_range(0..timezones.len());
+            let final_tz = timezones[timezone_index].clone();
+
+            GeneratedValue::Timestamp(nanoseconds_since_epoch, final_tz)
         }
         FuzzerDataType::IntervalMonthDayNano => {
             // Generate a reasonable interval with month, day, and nanosecond components
@@ -186,7 +181,7 @@ impl GeneratedValue {
             } => {
                 // Format decimal with proper scale
                 if *scale > 0 {
-                    let scale_factor = 10_i128.pow(*scale as u32);
+                    let scale_factor = safe_power_of_10(*scale);
                     let integer_part = value / scale_factor;
                     let fractional_part = (value % scale_factor).abs();
                     format!(
@@ -222,16 +217,16 @@ impl GeneratedValue {
                     hours, minutes, seconds, nanoseconds
                 )
             }
-            GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch) => {
+            GeneratedValue::Timestamp(nanoseconds_since_epoch, tz) => {
                 // Convert nanoseconds since Unix epoch to SQL timestamp format
-                nanoseconds_to_timestamp_string(*nanoseconds_since_epoch)
-            }
-            GeneratedValue::TimestampNanosecondTz(nanoseconds_since_epoch, tz) => {
-                // Convert nanoseconds since Unix epoch to SQL timestamp with timezone format
                 let timestamp_str = nanoseconds_to_timestamp_string(*nanoseconds_since_epoch);
-                // Remove the closing quote and add timezone, then add closing quote
-                let timestamp_without_quote = &timestamp_str[..timestamp_str.len() - 1];
-                format!("{}{}'", timestamp_without_quote, tz)
+                if let Some(tz) = tz {
+                    // Remove the closing quote and add timezone, then add closing quote
+                    let timestamp_without_quote = &timestamp_str[..timestamp_str.len() - 1];
+                    format!("{}{}'", timestamp_without_quote, tz)
+                } else {
+                    timestamp_str
+                }
             }
             GeneratedValue::IntervalMonthDayNano(interval_value) => {
                 // Convert i128 interval value to SQL INTERVAL format
@@ -239,7 +234,6 @@ impl GeneratedValue {
                 let months = ((*interval_value >> 32) & 0xFFFFFFFF) as i32;
                 let days = (*interval_value & 0xFFFFFFFF) as i32;
                 let nanoseconds = ((*interval_value >> 64) & 0xFFFFFFFFFFFFFFFF) as i64;
-
                 // Format as SQL INTERVAL literal
                 // Example: INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'
                 let mut parts = Vec::new();
@@ -341,11 +335,8 @@ impl GeneratedValue {
             }
             GeneratedValue::Date32(v) => ScalarValue::Date32(Some(*v)),
             GeneratedValue::Time64Nanosecond(v) => ScalarValue::Time64Nanosecond(Some(*v)),
-            GeneratedValue::TimestampNanosecond(v) => {
-                ScalarValue::TimestampNanosecond(Some(*v), None)
-            }
-            GeneratedValue::TimestampNanosecondTz(v, tz) => {
-                ScalarValue::TimestampNanosecond(Some(*v), Some(Arc::from(tz.as_str())))
+            GeneratedValue::Timestamp(v, tz) => {
+                ScalarValue::TimestampNanosecond(Some(*v), tz.as_deref().map(Arc::from))
             }
             GeneratedValue::IntervalMonthDayNano(v) => {
                 use datafusion::arrow::datatypes::IntervalMonthDayNano;
@@ -368,7 +359,7 @@ impl GeneratedValue {
 // =================
 
 /// Safely calculate 10^scale, preventing overflow
-fn safe_power_of_10(scale: i8) -> i128 {
+pub fn safe_power_of_10(scale: i8) -> i128 {
     // The maximum power of 10 that fits in i128 is approximately 10^38
     // For safety, we limit to 10^30 to avoid overflow in calculations
     let safe_scale = std::cmp::min(scale as u32, 30);
@@ -522,25 +513,25 @@ mod tests {
     }
 
     #[test]
-    fn test_timestamp_nanosecond_generation() {
-        // Test that TimestampNanosecond generation works correctly
+    fn test_timestamp_generation() {
+        // Test that Timestamp generation works correctly
         use crate::fuzz_context::RuntimeContext;
 
         let mut rng = rng_from_seed(42);
-        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+        let fuzzer_type = FuzzerDataType::Timestamp; // Use the unified Timestamp variant
         let runtime_ctx = RuntimeContext::default();
 
         let value = generate_value(&mut rng, &fuzzer_type, &runtime_ctx.value_generation_config);
 
-        // Should generate a TimestampNanosecond value
+        // Should generate a Timestamp value
         match value {
-            GeneratedValue::TimestampNanosecond(v) => {
+            GeneratedValue::Timestamp(v, _) => {
                 assert!(v >= 0, "Timestamp should be non-negative");
                 // Check that it's a reasonable timestamp (not too far in the future)
                 let max_ns = 24 * 60 * 60 * 1_000_000_000i64 * 36500; // ~100 years
                 assert!(v <= max_ns, "Timestamp should be within reasonable range");
             }
-            _ => panic!("Expected TimestampNanosecond value, got: {:?}", value),
+            _ => panic!("Expected Timestamp value, got: {:?}", value),
         }
 
         // Test SQL string generation
@@ -567,16 +558,16 @@ mod tests {
         assert!(
             matches!(
                 scalar_value,
-                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), None)
+                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), _)
             ),
-            "Should convert to TimestampNanosecond ScalarValue"
+            "Should convert to Timestamp ScalarValue (timezone may or may not be present)"
         );
     }
 
     #[test]
     fn test_timestamp_type_conversions() {
-        // Test that TimestampNanosecond type conversions work correctly
-        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+        // Test that Timestamp type conversions work correctly
+        let fuzzer_type = FuzzerDataType::Timestamp; // Use the unified Timestamp variant
 
         // Test conversion to DataFusion type
         let df_type = fuzzer_type.to_datafusion_type();
@@ -600,34 +591,32 @@ mod tests {
         );
 
         // Test properties
-        assert_eq!(fuzzer_type.display_name(), "timestamp_nanosecond");
+        assert_eq!(fuzzer_type.display_name(), "timestamp");
         assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMP");
         assert!(fuzzer_type.is_time());
         assert!(!fuzzer_type.is_numeric());
     }
 
     #[test]
-    fn test_timestamp_nanosecond_tz_generation() {
-        // Test that TimestampNanosecondTz generation works correctly
+    fn test_timestamp_tz_generation() {
+        // Test that TimestampTz generation works correctly
         use crate::fuzz_context::RuntimeContext;
 
         let mut rng = rng_from_seed(42);
-        let fuzzer_type = FuzzerDataType::TimestampNanosecondTz {
-            tz: "UTC".to_string(),
-        };
+        let fuzzer_type = FuzzerDataType::Timestamp;
         let runtime_ctx = RuntimeContext::default();
 
         let value = generate_value(&mut rng, &fuzzer_type, &runtime_ctx.value_generation_config);
 
-        // Should generate a TimestampNanosecondTz value
+        // Should generate a TimestampTz value
         match value {
-            GeneratedValue::TimestampNanosecondTz(v, _) => {
+            GeneratedValue::Timestamp(v, _) => {
                 assert!(v >= 0, "Timestamp should be non-negative");
                 // Check that it's a reasonable timestamp (not too far in the future)
                 let max_ns = 24 * 60 * 60 * 1_000_000_000i64 * 36500; // ~100 years
                 assert!(v <= max_ns, "Timestamp should be within reasonable range");
             }
-            _ => panic!("Expected TimestampNanosecondTz value, got: {:?}", value),
+            _ => panic!("Expected TimestampTz value, got: {:?}", value),
         }
 
         // Test SQL string generation
@@ -669,18 +658,16 @@ mod tests {
         assert!(
             matches!(
                 scalar_value,
-                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), Some(_))
+                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), _)
             ),
-            "Should convert to TimestampNanosecond ScalarValue with timezone"
+            "Should convert to Timestamp ScalarValue (timezone may or may not be present)"
         );
     }
 
     #[test]
-    fn test_timestamp_nanosecond_tz_type_conversions() {
-        // Test that TimestampNanosecondTz type conversions work correctly
-        let fuzzer_type = FuzzerDataType::TimestampNanosecondTz {
-            tz: "UTC".to_string(),
-        };
+    fn test_timestamp_tz_type_conversions() {
+        // Test that TimestampTz type conversions work correctly
+        let fuzzer_type = FuzzerDataType::Timestamp;
 
         // Test conversion to DataFusion type
         let df_type = fuzzer_type.to_datafusion_type();
@@ -689,10 +676,10 @@ mod tests {
                 df_type,
                 datafusion::arrow::datatypes::DataType::Timestamp(
                     datafusion::arrow::datatypes::TimeUnit::Nanosecond,
-                    Some(_)
+                    None
                 )
             ),
-            "Should convert to Timestamp(Nanosecond, Some(timezone))"
+            "Should convert to Timestamp(Nanosecond, None)"
         );
 
         // Test round-trip conversion
@@ -704,8 +691,8 @@ mod tests {
         );
 
         // Test properties
-        assert_eq!(fuzzer_type.display_name(), "timestamp_nanosecond_tz");
-        assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMPTZ");
+        assert_eq!(fuzzer_type.display_name(), "timestamp");
+        assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMP");
         assert!(fuzzer_type.is_time());
         assert!(!fuzzer_type.is_numeric());
     }
@@ -779,7 +766,7 @@ mod tests {
         use crate::fuzz_context::RuntimeContext;
 
         let mut rng = rng_from_seed(42);
-        let fuzzer_type = FuzzerDataType::TimestampNanosecond;
+        let fuzzer_type = FuzzerDataType::Timestamp; // Use the unified Timestamp variant
 
         // Use non-nullable configuration for testing
         let config = ValueGenerationConfig {
@@ -795,7 +782,7 @@ mod tests {
             let value = generate_value(&mut rng, &fuzzer_type, &config);
 
             match value {
-                GeneratedValue::TimestampNanosecond(_) => {
+                GeneratedValue::Timestamp(v, _) => {
                     let sql_string = value.to_sql_string();
                     // Verify the format is correct: 'YYYY-MM-DD HH:MM:SS.nnnnnnnnn'
                     assert!(
@@ -807,14 +794,60 @@ mod tests {
                     // Extract the date-time part (remove quotes)
                     let datetime_part = &sql_string[1..sql_string.len() - 1];
                     let space_parts: Vec<&str> = datetime_part.split(' ').collect();
-                    assert_eq!(
-                        space_parts.len(),
-                        2,
+                    assert!(
+                        space_parts.len() >= 2,
                         "Timestamp should have date and time parts"
                     );
 
                     let date_part = space_parts[0];
-                    let time_part = space_parts[1];
+                    let time_part_with_tz = space_parts[1..].join(" "); // Join remaining parts in case timezone is present
+
+                    // Extract time part without timezone
+                    let time_part =
+                        if time_part_with_tz.contains('+') || time_part_with_tz.contains('-') {
+                            // Find the timezone separator (usually a space before timezone)
+                            if let Some(tz_sep_pos) = time_part_with_tz.rfind(' ') {
+                                &time_part_with_tz[..tz_sep_pos]
+                            } else {
+                                // If no space, timezone might be directly attached (e.g., +08:00)
+                                // Find the first + or - that's not part of the time
+                                let mut tz_start = None;
+                                for (i, ch) in time_part_with_tz.chars().enumerate() {
+                                    if (ch == '+' || ch == '-') && i > 8 {
+                                        // After HH:MM:SS.nnnnnnnnn
+                                        tz_start = Some(i);
+                                        break;
+                                    }
+                                }
+                                if let Some(start) = tz_start {
+                                    &time_part_with_tz[..start]
+                                } else {
+                                    &time_part_with_tz
+                                }
+                            }
+                        } else if time_part_with_tz.contains('/') {
+                            // Handle timezone names like "Europe/London"
+                            if let Some(tz_sep_pos) = time_part_with_tz.find(' ') {
+                                &time_part_with_tz[..tz_sep_pos]
+                            } else {
+                                // Find the first / that's not part of the time
+                                let mut tz_start = None;
+                                for (i, ch) in time_part_with_tz.chars().enumerate() {
+                                    if ch == '/' && i > 8 {
+                                        // After HH:MM:SS.nnnnnnnnn
+                                        tz_start = Some(i);
+                                        break;
+                                    }
+                                }
+                                if let Some(start) = tz_start {
+                                    &time_part_with_tz[..start]
+                                } else {
+                                    &time_part_with_tz
+                                }
+                            }
+                        } else {
+                            &time_part_with_tz
+                        };
 
                     // Parse date part
                     let date_parts: Vec<&str> = date_part.split('-').collect();
@@ -876,9 +909,13 @@ mod tests {
                     );
 
                     let second: i32 = second_parts[0].parse().expect("Second should be parseable");
-                    let nanosecond: i32 = second_parts[1]
-                        .parse()
-                        .expect("Nanosecond should be parseable");
+                    // Strip any trailing non-digit characters (timezone) from nanosecond part
+                    let ns_digits: String = second_parts[1]
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect();
+                    let nanosecond: i32 =
+                        ns_digits.parse().expect("Nanosecond should be parseable");
 
                     assert!(second >= 0, "Second should be >= 0");
                     assert!(second <= 59, "Second should be <= 59");
@@ -888,7 +925,7 @@ mod tests {
                         "Nanosecond should be <= 999999999"
                     );
                 }
-                _ => panic!("Expected TimestampNanosecond value, got: {:?}", value),
+                _ => panic!("Expected Timestamp value, got: {:?}", value),
             }
         }
     }

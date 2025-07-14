@@ -1,4 +1,5 @@
 use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::Expr;
 use rand::{Rng, rngs::StdRng};
 use std::sync::{Arc, LazyLock};
 use strum::{EnumIter, IntoEnumIterator};
@@ -93,6 +94,10 @@ impl BaseExpr {
 }
 pub trait BaseExprWithInfo {
     fn describe(&self) -> ExprWrapper;
+
+    /// Builds the actual DataFusion expression from child expressions.
+    /// This method encapsulates the construction logic for each expression type.
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr;
 }
 
 /// Returns all available expressions that can be used in query generation
