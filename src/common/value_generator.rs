@@ -1,6 +1,7 @@
 use crate::common::FuzzerDataType;
 use rand::Rng;
 use rand::rngs::StdRng;
+use std::sync::Arc;
 
 /// Raw value representation for generated data
 #[derive(Debug, Clone)]
@@ -17,9 +18,11 @@ pub enum GeneratedValue {
         precision: u8,
         scale: i8,
     },
-    Date32(i32),              // Days since Unix epoch (1970-01-01)
-    Time64Nanosecond(i64),    // Nanoseconds since midnight
-    TimestampNanosecond(i64), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC)
+    Date32(i32),                        // Days since Unix epoch (1970-01-01)
+    Time64Nanosecond(i64),              // Nanoseconds since midnight
+    TimestampNanosecond(i64),           // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC)
+    TimestampNanosecondTz(i64, String), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC) with timezone
+    IntervalMonthDayNano(i128),         // MonthDayNano interval as i128 (months, days, nanoseconds)
     Null,
 }
 
@@ -123,6 +126,45 @@ pub fn generate_value(
             let nanoseconds_since_epoch = rng.random_range(0..=max_nanoseconds);
             GeneratedValue::TimestampNanosecond(nanoseconds_since_epoch)
         }
+        FuzzerDataType::TimestampNanosecondTz { tz } => {
+            // Generate a reasonable range of timestamps with timezone in nanoseconds since Unix epoch:
+            // - Start: 0 (1970-01-01 00:00:00 UTC)
+            // - End: approximately 100 years of nanoseconds from epoch
+            // - This gives us timestamps from 1970-01-01 to roughly 2070
+            let nanoseconds_per_day = 24 * 60 * 60 * 1_000_000_000i64;
+            let days_in_100_years = 36500i64; // Approximate
+            let max_nanoseconds = nanoseconds_per_day * days_in_100_years;
+            let nanoseconds_since_epoch = rng.random_range(0..=max_nanoseconds);
+            // Pick a random timezone from a small set
+            let timezones = [
+                "UTC",
+                "+08:00",
+                "-05:00",
+                "+02:00",
+                "America/New_York",
+                "Europe/London",
+                "Asia/Tokyo",
+                "Australia/Sydney",
+            ];
+            let tz = timezones[rng.random_range(0..timezones.len())].to_string();
+            GeneratedValue::TimestampNanosecondTz(nanoseconds_since_epoch, tz)
+        }
+        FuzzerDataType::IntervalMonthDayNano => {
+            // Generate a reasonable interval with month, day, and nanosecond components
+            // MonthDayNano interval is stored as i128 with:
+            // - bits 0-31: days
+            // - bits 32-63: months
+            // - bits 64-127: nanoseconds
+            let months = rng.random_range(-12..=12); // Reasonable month range
+            let days = rng.random_range(-30..=30); // Reasonable day range
+            let nanoseconds = rng.random_range(-1_000_000_000..=1_000_000_000); // Reasonable nanosecond range
+
+            // Pack into i128: (months << 32) | (days & 0xFFFFFFFF)
+            let interval_value = ((months as i128) << 32)
+                | ((days as i128) & 0xFFFFFFFF)
+                | ((nanoseconds as i128) << 64);
+            GeneratedValue::IntervalMonthDayNano(interval_value)
+        }
     }
 }
 
@@ -184,6 +226,90 @@ impl GeneratedValue {
                 // Convert nanoseconds since Unix epoch to SQL timestamp format
                 nanoseconds_to_timestamp_string(*nanoseconds_since_epoch)
             }
+            GeneratedValue::TimestampNanosecondTz(nanoseconds_since_epoch, tz) => {
+                // Convert nanoseconds since Unix epoch to SQL timestamp with timezone format
+                let timestamp_str = nanoseconds_to_timestamp_string(*nanoseconds_since_epoch);
+                // Remove the closing quote and add timezone, then add closing quote
+                let timestamp_without_quote = &timestamp_str[..timestamp_str.len() - 1];
+                format!("{}{}'", timestamp_without_quote, tz)
+            }
+            GeneratedValue::IntervalMonthDayNano(interval_value) => {
+                // Convert i128 interval value to SQL INTERVAL format
+                // Extract components: months, days, nanoseconds
+                let months = ((*interval_value >> 32) & 0xFFFFFFFF) as i32;
+                let days = (*interval_value & 0xFFFFFFFF) as i32;
+                let nanoseconds = ((*interval_value >> 64) & 0xFFFFFFFFFFFFFFFF) as i64;
+
+                // Format as SQL INTERVAL literal
+                // Example: INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds'
+                let mut parts = Vec::new();
+
+                if months != 0 {
+                    let abs_months = months.abs();
+                    let years = abs_months / 12;
+                    let remaining_months = abs_months % 12;
+
+                    if years > 0 {
+                        parts.push(format!(
+                            "{} year{}",
+                            years,
+                            if years == 1 { "" } else { "s" }
+                        ));
+                    }
+                    if remaining_months > 0 {
+                        parts.push(format!(
+                            "{} month{}",
+                            remaining_months,
+                            if remaining_months == 1 { "" } else { "s" }
+                        ));
+                    }
+                }
+
+                if days != 0 {
+                    parts.push(format!(
+                        "{} day{}",
+                        days.abs(),
+                        if days.abs() == 1 { "" } else { "s" }
+                    ));
+                }
+
+                if nanoseconds != 0 {
+                    let abs_ns = nanoseconds.abs();
+                    let hours = abs_ns / (60 * 60 * 1_000_000_000);
+                    let remaining_ns = abs_ns % (60 * 60 * 1_000_000_000);
+                    let minutes = remaining_ns / (60 * 1_000_000_000);
+                    let remaining_ns = remaining_ns % (60 * 1_000_000_000);
+                    let seconds = remaining_ns / 1_000_000_000;
+
+                    if hours > 0 {
+                        parts.push(format!(
+                            "{} hour{}",
+                            hours,
+                            if hours == 1 { "" } else { "s" }
+                        ));
+                    }
+                    if minutes > 0 {
+                        parts.push(format!(
+                            "{} minute{}",
+                            minutes,
+                            if minutes == 1 { "" } else { "s" }
+                        ));
+                    }
+                    if seconds > 0 {
+                        parts.push(format!(
+                            "{} second{}",
+                            seconds,
+                            if seconds == 1 { "" } else { "s" }
+                        ));
+                    }
+                }
+
+                if parts.is_empty() {
+                    "INTERVAL '0'".to_string()
+                } else {
+                    format!("INTERVAL '{}'", parts.join(" "))
+                }
+            }
             GeneratedValue::Null => "NULL".to_string(),
         }
     }
@@ -217,6 +343,20 @@ impl GeneratedValue {
             GeneratedValue::Time64Nanosecond(v) => ScalarValue::Time64Nanosecond(Some(*v)),
             GeneratedValue::TimestampNanosecond(v) => {
                 ScalarValue::TimestampNanosecond(Some(*v), None)
+            }
+            GeneratedValue::TimestampNanosecondTz(v, tz) => {
+                ScalarValue::TimestampNanosecond(Some(*v), Some(Arc::from(tz.as_str())))
+            }
+            GeneratedValue::IntervalMonthDayNano(v) => {
+                use datafusion::arrow::datatypes::IntervalMonthDayNano;
+                // Extract components from i128: months, days, nanoseconds
+                let months = ((*v >> 32) & 0xFFFFFFFF) as i32;
+                let days = (*v & 0xFFFFFFFF) as i32;
+                let nanoseconds = ((*v >> 64) & 0xFFFFFFFFFFFFFFFF) as i64;
+
+                // Create IntervalMonthDayNano value
+                let interval_value = IntervalMonthDayNano::new(months, days, nanoseconds);
+                ScalarValue::IntervalMonthDayNano(Some(interval_value))
             }
             GeneratedValue::Null => ScalarValue::Null,
         }
@@ -467,6 +607,110 @@ mod tests {
     }
 
     #[test]
+    fn test_timestamp_nanosecond_tz_generation() {
+        // Test that TimestampNanosecondTz generation works correctly
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::TimestampNanosecondTz {
+            tz: "UTC".to_string(),
+        };
+        let runtime_ctx = RuntimeContext::default();
+
+        let value = generate_value(&mut rng, &fuzzer_type, &runtime_ctx.value_generation_config);
+
+        // Should generate a TimestampNanosecondTz value
+        match value {
+            GeneratedValue::TimestampNanosecondTz(v, _) => {
+                assert!(v >= 0, "Timestamp should be non-negative");
+                // Check that it's a reasonable timestamp (not too far in the future)
+                let max_ns = 24 * 60 * 60 * 1_000_000_000i64 * 36500; // ~100 years
+                assert!(v <= max_ns, "Timestamp should be within reasonable range");
+            }
+            _ => panic!("Expected TimestampNanosecondTz value, got: {:?}", value),
+        }
+
+        // Test SQL string generation
+        let sql_string = value.to_sql_string();
+        assert!(
+            sql_string.starts_with("'"),
+            "SQL string should start with quote"
+        );
+        assert!(
+            sql_string.ends_with("'"),
+            "SQL string should end with a single quote (timezone present)"
+        );
+        // Check that the timezone is present in the SQL string
+        let timezones = [
+            "UTC",
+            "+08:00",
+            "-05:00",
+            "+02:00",
+            "America/New_York",
+            "Europe/London",
+            "Asia/Tokyo",
+            "Australia/Sydney",
+        ];
+        assert!(
+            timezones.iter().any(|tz| sql_string.contains(tz)),
+            "SQL string should contain a known timezone"
+        );
+        assert!(
+            sql_string.contains("-"),
+            "SQL string should contain date separators"
+        );
+        assert!(
+            sql_string.contains(":"),
+            "SQL string should contain time separators"
+        );
+
+        // Test DataFusion ScalarValue conversion
+        let scalar_value = value.to_scalar_value();
+        assert!(
+            matches!(
+                scalar_value,
+                datafusion::scalar::ScalarValue::TimestampNanosecond(Some(_), Some(_))
+            ),
+            "Should convert to TimestampNanosecond ScalarValue with timezone"
+        );
+    }
+
+    #[test]
+    fn test_timestamp_nanosecond_tz_type_conversions() {
+        // Test that TimestampNanosecondTz type conversions work correctly
+        let fuzzer_type = FuzzerDataType::TimestampNanosecondTz {
+            tz: "UTC".to_string(),
+        };
+
+        // Test conversion to DataFusion type
+        let df_type = fuzzer_type.to_datafusion_type();
+        assert!(
+            matches!(
+                df_type,
+                datafusion::arrow::datatypes::DataType::Timestamp(
+                    datafusion::arrow::datatypes::TimeUnit::Nanosecond,
+                    Some(_)
+                )
+            ),
+            "Should convert to Timestamp(Nanosecond, Some(timezone))"
+        );
+
+        // Test round-trip conversion
+        let back_to_fuzzer = FuzzerDataType::from_datafusion_type(&df_type);
+        assert_eq!(
+            back_to_fuzzer,
+            Some(fuzzer_type.clone()),
+            "Round-trip conversion should work"
+        );
+
+        // Test properties
+        assert_eq!(fuzzer_type.display_name(), "timestamp_nanosecond_tz");
+        assert_eq!(fuzzer_type.to_sql_type(), "TIMESTAMPTZ");
+        assert!(fuzzer_type.is_time());
+        assert!(!fuzzer_type.is_numeric());
+    }
+
+    #[test]
     fn test_date_generation_validity() {
         // Test that date generation produces valid dates
         use crate::fuzz_context::RuntimeContext;
@@ -647,5 +891,95 @@ mod tests {
                 _ => panic!("Expected TimestampNanosecond value, got: {:?}", value),
             }
         }
+    }
+
+    #[test]
+    fn test_interval_month_day_nano_generation() {
+        // Test that IntervalMonthDayNano generation works correctly
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::IntervalMonthDayNano;
+        let runtime_ctx = RuntimeContext::default();
+
+        let value = generate_value(&mut rng, &fuzzer_type, &runtime_ctx.value_generation_config);
+
+        // Should generate an IntervalMonthDayNano value
+        match value {
+            GeneratedValue::IntervalMonthDayNano(v) => {
+                // Extract components to verify they are reasonable
+                let months = ((v >> 32) & 0xFFFFFFFF) as i32;
+                let days = (v & 0xFFFFFFFF) as i32;
+                let nanoseconds = ((v >> 64) & 0xFFFFFFFFFFFFFFFF) as i64;
+
+                // Check that values are within reasonable ranges
+                assert!(
+                    months >= -12 && months <= 12,
+                    "Months should be in reasonable range"
+                );
+                assert!(
+                    days >= -30 && days <= 30,
+                    "Days should be in reasonable range"
+                );
+                assert!(
+                    nanoseconds >= -1_000_000_000 && nanoseconds <= 1_000_000_000,
+                    "Nanoseconds should be in reasonable range"
+                );
+            }
+            _ => panic!("Expected IntervalMonthDayNano value, got: {:?}", value),
+        }
+
+        // Test SQL string generation
+        let sql_string = value.to_sql_string();
+        assert!(
+            sql_string.starts_with("INTERVAL '"),
+            "SQL string should start with INTERVAL '"
+        );
+        assert!(
+            sql_string.ends_with("'"),
+            "SQL string should end with quote"
+        );
+
+        // Test DataFusion ScalarValue conversion
+        let scalar_value = value.to_scalar_value();
+        assert!(
+            matches!(
+                scalar_value,
+                datafusion::scalar::ScalarValue::IntervalMonthDayNano(Some(_))
+            ),
+            "Should convert to IntervalMonthDayNano ScalarValue"
+        );
+    }
+
+    #[test]
+    fn test_interval_month_day_nano_type_conversions() {
+        // Test that IntervalMonthDayNano type conversions work correctly
+        let fuzzer_type = FuzzerDataType::IntervalMonthDayNano;
+
+        // Test conversion to DataFusion type
+        let df_type = fuzzer_type.to_datafusion_type();
+        assert!(
+            matches!(
+                df_type,
+                datafusion::arrow::datatypes::DataType::Interval(
+                    datafusion::arrow::datatypes::IntervalUnit::MonthDayNano
+                )
+            ),
+            "Should convert to Interval(MonthDayNano)"
+        );
+
+        // Test round-trip conversion
+        let back_to_fuzzer = FuzzerDataType::from_datafusion_type(&df_type);
+        assert_eq!(
+            back_to_fuzzer,
+            Some(fuzzer_type.clone()),
+            "Round-trip conversion should work"
+        );
+
+        // Test properties
+        assert_eq!(fuzzer_type.display_name(), "interval_month_day_nano");
+        assert_eq!(fuzzer_type.to_sql_type(), "INTERVAL");
+        assert!(fuzzer_type.is_time());
+        assert!(!fuzzer_type.is_numeric());
     }
 }

@@ -63,12 +63,11 @@ impl BaseExprWithInfo for SubExpr {
     }
 }
 
+// TODO(confirm): I think *, /, % are not available for time types?
 pub struct MulExpr;
 impl BaseExprWithInfo for MulExpr {
     fn describe(&self) -> ExprWrapper {
-        // Support both numeric and time types for multiplication
-        let mut possible_return_types = get_numeric_data_types();
-        possible_return_types.extend(get_time_data_types());
+        let possible_return_types = get_numeric_data_types();
 
         let return_types: Vec<DataType> = possible_return_types
             .iter()
@@ -86,10 +85,7 @@ impl BaseExprWithInfo for MulExpr {
 pub struct DivExpr;
 impl BaseExprWithInfo for DivExpr {
     fn describe(&self) -> ExprWrapper {
-        // Support both numeric and time types for division
-        // TODO(coverage): investigate if time types actually support division
-        let mut possible_return_types = get_numeric_data_types();
-        possible_return_types.extend(get_time_data_types());
+        let possible_return_types = get_numeric_data_types();
 
         let return_types: Vec<DataType> = possible_return_types
             .iter()
@@ -107,10 +103,7 @@ impl BaseExprWithInfo for DivExpr {
 pub struct ModExpr;
 impl BaseExprWithInfo for ModExpr {
     fn describe(&self) -> ExprWrapper {
-        // Support both numeric and time types for modulo
-        // TODO(coverage): investigate if time types actually support division
-        let mut possible_return_types = get_numeric_data_types();
-        possible_return_types.extend(get_time_data_types());
+        let possible_return_types = get_numeric_data_types();
 
         let return_types: Vec<DataType> = possible_return_types
             .iter()

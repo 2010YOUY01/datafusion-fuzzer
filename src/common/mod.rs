@@ -23,6 +23,8 @@ pub mod value_generator;
 // 7. Add error patterns (if needed)
 //    --> src/cli/error_whitelist.rs
 
+// TODO(coverage): Support `Duration` time, which is not a standard SQL type,
+// but supported in Arrow.
 /// Make it easier to manage supported DataFusion data types.
 /// I can't remember why I added this indrection...
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,6 +44,10 @@ pub enum FuzzerDataType {
     Time64Nanosecond,
     // Timestamp with nanosecond precision and no timezone
     TimestampNanosecond,
+    // Timestamp with nanosecond precision and timezone
+    TimestampNanosecondTz { tz: String },
+    // Interval with month, day, and nanosecond components
+    IntervalMonthDayNano,
 }
 
 impl FuzzerDataType {
@@ -71,6 +77,13 @@ impl FuzzerDataType {
             }
             FuzzerDataType::TimestampNanosecond => {
                 DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None)
+            }
+            FuzzerDataType::TimestampNanosecondTz { tz } => DataType::Timestamp(
+                datafusion::arrow::datatypes::TimeUnit::Nanosecond,
+                Some(std::sync::Arc::from(tz.as_str())),
+            ),
+            FuzzerDataType::IntervalMonthDayNano => {
+                DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano)
             }
         }
     }
@@ -102,6 +115,12 @@ impl FuzzerDataType {
             DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, None) => {
                 Some(FuzzerDataType::TimestampNanosecond)
             }
+            DataType::Timestamp(datafusion::arrow::datatypes::TimeUnit::Nanosecond, Some(tz)) => {
+                Some(FuzzerDataType::TimestampNanosecondTz { tz: tz.to_string() })
+            }
+            DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano) => {
+                Some(FuzzerDataType::IntervalMonthDayNano)
+            }
             _ => None,
         }
     }
@@ -120,6 +139,8 @@ impl FuzzerDataType {
             FuzzerDataType::Date32 => "date32",
             FuzzerDataType::Time64Nanosecond => "time64_nanosecond",
             FuzzerDataType::TimestampNanosecond => "timestamp_nanosecond",
+            FuzzerDataType::TimestampNanosecondTz { .. } => "timestamp_nanosecond_tz",
+            FuzzerDataType::IntervalMonthDayNano => "interval_month_day_nano",
         }
     }
 
@@ -136,6 +157,8 @@ impl FuzzerDataType {
             FuzzerDataType::Date32 => false,
             FuzzerDataType::Time64Nanosecond => false,
             FuzzerDataType::TimestampNanosecond => false,
+            FuzzerDataType::TimestampNanosecondTz { .. } => false,
+            FuzzerDataType::IntervalMonthDayNano => false,
         }
     }
 
@@ -144,6 +167,8 @@ impl FuzzerDataType {
             FuzzerDataType::Date32 => true,
             FuzzerDataType::Time64Nanosecond => true,
             FuzzerDataType::TimestampNanosecond => true,
+            FuzzerDataType::TimestampNanosecondTz { .. } => true,
+            FuzzerDataType::IntervalMonthDayNano => true,
             FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32
@@ -188,6 +213,8 @@ impl FuzzerDataType {
             FuzzerDataType::Date32 => "DATE",
             FuzzerDataType::Time64Nanosecond => "TIME",
             FuzzerDataType::TimestampNanosecond => "TIMESTAMP",
+            FuzzerDataType::TimestampNanosecondTz { .. } => "TIMESTAMPTZ",
+            FuzzerDataType::IntervalMonthDayNano => "INTERVAL",
         }
     }
 }
@@ -198,6 +225,9 @@ static AVAILABLE_DATA_TYPES: OnceLock<Vec<FuzzerDataType>> = OnceLock::new();
 /// Initialize the available data types (called once)
 // TODO(known-bug): Generate Decimal 256 after the upstream issue addressed
 // https://github.com/apache/datafusion/issues/16689
+// TODO(valid-rate): Since Decimal and TimestampTz type has many variants, they
+// are more likely to be choosen. I want make them less likely to improve the
+// probability of generating a valid query.
 pub fn init_available_data_types() {
     AVAILABLE_DATA_TYPES.get_or_init(|| {
         vec![
@@ -227,6 +257,16 @@ pub fn init_available_data_types() {
             FuzzerDataType::Date32,
             FuzzerDataType::Time64Nanosecond,
             FuzzerDataType::TimestampNanosecond,
+            FuzzerDataType::TimestampNanosecondTz {
+                tz: "UTC".to_string(),
+            },
+            FuzzerDataType::TimestampNanosecondTz {
+                tz: "+08:00".to_string(),
+            },
+            FuzzerDataType::TimestampNanosecondTz {
+                tz: "America/New_York".to_string(),
+            },
+            FuzzerDataType::IntervalMonthDayNano,
         ]
     });
 }

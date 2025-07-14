@@ -20,3 +20,32 @@ pub fn generate_scalar_literal(
     );
     value.to_scalar_value()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::rng::rng_from_seed;
+
+    #[test]
+    fn test_interval_scalar_literal_generation() {
+        // Test that INTERVAL scalar literals can be generated
+        let ctx = Arc::new(GlobalContext::default());
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::IntervalMonthDayNano;
+
+        let scalar_value = generate_scalar_literal(&ctx, &mut rng, &fuzzer_type);
+
+        // Should generate a valid IntervalMonthDayNano ScalarValue
+        assert!(
+            matches!(scalar_value, ScalarValue::IntervalMonthDayNano(Some(_))),
+            "Should generate IntervalMonthDayNano ScalarValue"
+        );
+
+        // Test that it can be converted to a string representation
+        let string_repr = format!("{:?}", scalar_value);
+        assert!(
+            string_repr.contains("IntervalMonthDayNano"),
+            "String representation should contain IntervalMonthDayNano"
+        );
+    }
+}
