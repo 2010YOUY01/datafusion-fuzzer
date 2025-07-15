@@ -5,7 +5,10 @@ use std::sync::{Arc, LazyLock};
 use strum::{EnumIter, IntoEnumIterator};
 
 use super::expr_impl::{
-    AddExpr, AndExpr, CurrentDateExpr, CurrentTimeExpr, DivExpr, ModExpr, MulExpr, OrExpr, SubExpr,
+    AddExpr, AndExpr, CurrentDateExpr, CurrentTimeExpr, CurrentTimestampExpr, DateFormatExpr,
+    DivExpr, ModExpr, MulExpr, NowExpr, OrExpr, SubExpr, ToCharExpr, ToDateExpr, ToLocalTimeExpr,
+    ToTimestampExpr, ToTimestampMicrosExpr, ToTimestampMillisExpr, ToTimestampNanosExpr,
+    ToTimestampSecondsExpr, ToUnixtimeExpr, TodayExpr,
 };
 
 /// A wrapper of datafusion expression
@@ -81,6 +84,19 @@ pub enum BaseExpr {
     Or,
     CurrentDate,
     CurrentTime,
+    Now,
+    CurrentTimestamp,
+    ToChar,
+    DateFormat,
+    ToDate,
+    ToLocalTime,
+    ToTimestamp,
+    ToTimestampMicros,
+    ToTimestampMillis,
+    ToTimestampNanos,
+    ToTimestampSeconds,
+    ToUnixtime,
+    Today,
 }
 
 impl BaseExpr {
@@ -95,6 +111,19 @@ impl BaseExpr {
             BaseExpr::Or => Box::new(OrExpr),
             BaseExpr::CurrentDate => Box::new(CurrentDateExpr),
             BaseExpr::CurrentTime => Box::new(CurrentTimeExpr),
+            BaseExpr::Now => Box::new(NowExpr),
+            BaseExpr::CurrentTimestamp => Box::new(CurrentTimestampExpr),
+            BaseExpr::ToChar => Box::new(ToCharExpr),
+            BaseExpr::DateFormat => Box::new(DateFormatExpr),
+            BaseExpr::ToDate => Box::new(ToDateExpr),
+            BaseExpr::ToLocalTime => Box::new(ToLocalTimeExpr),
+            BaseExpr::ToTimestamp => Box::new(ToTimestampExpr),
+            BaseExpr::ToTimestampMicros => Box::new(ToTimestampMicrosExpr),
+            BaseExpr::ToTimestampMillis => Box::new(ToTimestampMillisExpr),
+            BaseExpr::ToTimestampNanos => Box::new(ToTimestampNanosExpr),
+            BaseExpr::ToTimestampSeconds => Box::new(ToTimestampSecondsExpr),
+            BaseExpr::ToUnixtime => Box::new(ToUnixtimeExpr),
+            BaseExpr::Today => Box::new(TodayExpr),
         }
     }
 }

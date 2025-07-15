@@ -2,7 +2,6 @@ use datafusion::arrow::datatypes::DataType;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
 use datafusion_functions::datetime;
-use std::sync::Arc;
 
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
 use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types};
@@ -13,6 +12,8 @@ use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types}
 /// - [x] Logical Operators: AND, OR
 /// - [ ] Bitwise Operators: &, |, #, >>, <<
 /// - [ ] Other Operators: || (concat), @> (contains), <@ (contained by)
+/// - [x] Time and Date Functions: current_date, current_time, current_timestamp, date_format, now, to_char, to_date, to_local_time, to_timestamp, to_timestamp_micros, to_timestamp_millis, to_timestamp_nanos, to_timestamp_seconds, to_unixtime, today
+/// - [ ] Time and Date Functions (missing): date_bin, date_part, date_trunc, datepart, datetrunc, from_unixtime, make_date
 
 // The following implementation includes several simplifications:
 // The generation strategy aims to produce valid expressions with best effort;
@@ -253,6 +254,417 @@ impl BaseExprWithInfo for CurrentTimeExpr {
         Expr::ScalarFunction(ScalarFunction::new_udf(
             current_time_udf,
             vec![], // No arguments for current_time
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select now();
+/// Returns the current UTC timestamp.
+pub struct NowExpr;
+impl BaseExprWithInfo for NowExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Now,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![]], // No arguments
+        }
+    }
+
+    fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
+        let now_udf = datetime::now();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            now_udf,
+            vec![], // No arguments for now
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select current_timestamp();
+/// Alias for now() - returns the current UTC timestamp.
+pub struct CurrentTimestampExpr;
+impl BaseExprWithInfo for CurrentTimestampExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::CurrentTimestamp,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![]], // No arguments
+        }
+    }
+
+    fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
+        let current_timestamp_udf = datetime::now(); // Same as now()
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            current_timestamp_udf,
+            vec![], // No arguments for current_timestamp
+        ))
+    }
+}
+
+// ========================
+// Date/Time Conversion Functions
+// ========================
+
+/// Example usage (SQL):
+///   select to_char('2023-03-01'::date, '%d-%m-%Y');
+/// Returns a string representation of a date, time, timestamp or duration based on a Chrono format.
+pub struct ToCharExpr;
+impl BaseExprWithInfo for ToCharExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::String.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToChar,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::Date32.to_datafusion_type(),
+                    FuzzerDataType::Time64Nanosecond.to_datafusion_type(),
+                    FuzzerDataType::Timestamp.to_datafusion_type(),
+                    FuzzerDataType::IntervalMonthDayNano.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::Fixed(
+                    FuzzerDataType::String.to_datafusion_type(),
+                )],
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_char_udf = datetime::to_char();
+        Expr::ScalarFunction(ScalarFunction::new_udf(to_char_udf, child_exprs.to_vec()))
+    }
+}
+
+/// Example usage (SQL):
+///   select date_format('2023-03-01'::date, '%d-%m-%Y');
+/// Alias for to_char() - returns a string representation of a date, time, timestamp or duration.
+pub struct DateFormatExpr;
+impl BaseExprWithInfo for DateFormatExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::String.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::DateFormat,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::Date32.to_datafusion_type(),
+                    FuzzerDataType::Time64Nanosecond.to_datafusion_type(),
+                    FuzzerDataType::Timestamp.to_datafusion_type(),
+                    FuzzerDataType::IntervalMonthDayNano.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::Fixed(
+                    FuzzerDataType::String.to_datafusion_type(),
+                )],
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let date_format_udf = datetime::to_char(); // Same as to_char()
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            date_format_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_date('2023-01-31');
+/// Converts a value to a date (YYYY-MM-DD).
+pub struct ToDateExpr;
+impl BaseExprWithInfo for ToDateExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Date32.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToDate,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::Float32.to_datafusion_type(),
+                    FuzzerDataType::Float64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_date_udf = datetime::to_date();
+        Expr::ScalarFunction(ScalarFunction::new_udf(to_date_udf, child_exprs.to_vec()))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_local_time('2024-04-01T00:00:20Z'::timestamp);
+/// Converts a timestamp with a timezone to a timestamp without a timezone.
+pub struct ToLocalTimeExpr;
+impl BaseExprWithInfo for ToLocalTimeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToLocalTime,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![TypeGroup::OneOf(vec![
+                FuzzerDataType::Timestamp.to_datafusion_type(),
+            ])]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_local_time_udf = datetime::to_local_time();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_local_time_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_timestamp('2023-01-31T09:26:56.123456789-05:00');
+/// Converts a value to a timestamp (YYYY-MM-DDT00:00:00Z).
+pub struct ToTimestampExpr;
+impl BaseExprWithInfo for ToTimestampExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToTimestamp,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::UInt32.to_datafusion_type(),
+                    FuzzerDataType::UInt64.to_datafusion_type(),
+                    FuzzerDataType::Float32.to_datafusion_type(),
+                    FuzzerDataType::Float64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_timestamp_udf = datetime::to_timestamp();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_timestamp_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_timestamp_micros('2023-01-31T09:26:56.123456789-05:00');
+/// Converts a value to a timestamp with microsecond precision.
+pub struct ToTimestampMicrosExpr;
+impl BaseExprWithInfo for ToTimestampMicrosExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToTimestampMicros,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::UInt32.to_datafusion_type(),
+                    FuzzerDataType::UInt64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_timestamp_micros_udf = datetime::to_timestamp_micros();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_timestamp_micros_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_timestamp_millis('2023-01-31T09:26:56.123456789-05:00');
+/// Converts a value to a timestamp with millisecond precision.
+pub struct ToTimestampMillisExpr;
+impl BaseExprWithInfo for ToTimestampMillisExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToTimestampMillis,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::UInt32.to_datafusion_type(),
+                    FuzzerDataType::UInt64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_timestamp_millis_udf = datetime::to_timestamp_millis();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_timestamp_millis_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_timestamp_nanos('2023-01-31T09:26:56.123456789-05:00');
+/// Converts a value to a timestamp with nanosecond precision.
+pub struct ToTimestampNanosExpr;
+impl BaseExprWithInfo for ToTimestampNanosExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToTimestampNanos,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::UInt32.to_datafusion_type(),
+                    FuzzerDataType::UInt64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_timestamp_nanos_udf = datetime::to_timestamp_nanos();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_timestamp_nanos_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_timestamp_seconds('2023-01-31T09:26:56.123456789-05:00');
+/// Converts a value to a timestamp with second precision.
+pub struct ToTimestampSecondsExpr;
+impl BaseExprWithInfo for ToTimestampSecondsExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Timestamp.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToTimestampSeconds,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Int32.to_datafusion_type(),
+                    FuzzerDataType::Int64.to_datafusion_type(),
+                    FuzzerDataType::UInt32.to_datafusion_type(),
+                    FuzzerDataType::UInt64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_timestamp_seconds_udf = datetime::to_timestamp_seconds();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_timestamp_seconds_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select to_unixtime('2020-09-08T12:00:00+00:00');
+/// Converts a value to seconds since the unix epoch (1970-01-01T00:00:00Z).
+pub struct ToUnixtimeExpr;
+impl BaseExprWithInfo for ToUnixtimeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Int64.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ToUnixtime,
+            return_type: return_types,
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                    FuzzerDataType::Date32.to_datafusion_type(),
+                    FuzzerDataType::Timestamp.to_datafusion_type(),
+                    FuzzerDataType::Float32.to_datafusion_type(),
+                    FuzzerDataType::Float64.to_datafusion_type(),
+                ])],
+                vec![TypeGroup::OneOf(vec![
+                    FuzzerDataType::String.to_datafusion_type(),
+                ])], // Optional format strings
+            ],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        let to_unixtime_udf = datetime::to_unixtime();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            to_unixtime_udf,
+            child_exprs.to_vec(),
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select today();
+/// Alias of current_date().
+pub struct TodayExpr;
+impl BaseExprWithInfo for TodayExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Date32.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Today,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![]], // No arguments
+        }
+    }
+
+    fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
+        let today_udf = datetime::current_date(); // Same as current_date()
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            today_udf,
+            vec![], // No arguments for today
         ))
     }
 }

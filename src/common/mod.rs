@@ -48,6 +48,8 @@ pub enum FuzzerDataType {
     Timestamp,
     // Interval with month, day, and nanosecond components
     IntervalMonthDayNano,
+    // String type for text data
+    String,
 }
 
 impl FuzzerDataType {
@@ -80,6 +82,7 @@ impl FuzzerDataType {
             FuzzerDataType::IntervalMonthDayNano => {
                 DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano)
             }
+            FuzzerDataType::String => DataType::Utf8,
         }
     }
 
@@ -107,6 +110,7 @@ impl FuzzerDataType {
             DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano) => {
                 Some(FuzzerDataType::IntervalMonthDayNano)
             }
+            DataType::Utf8 => Some(FuzzerDataType::String),
             _ => None,
         }
     }
@@ -126,6 +130,7 @@ impl FuzzerDataType {
             FuzzerDataType::Time64Nanosecond => "time64_nanosecond",
             FuzzerDataType::Timestamp => "timestamp",
             FuzzerDataType::IntervalMonthDayNano => "interval_month_day_nano",
+            FuzzerDataType::String => "string",
         }
     }
 
@@ -141,8 +146,9 @@ impl FuzzerDataType {
             FuzzerDataType::Boolean
             | FuzzerDataType::Date32
             | FuzzerDataType::Time64Nanosecond
-            | FuzzerDataType::Timestamp { .. }
-            | FuzzerDataType::IntervalMonthDayNano => false,
+            | FuzzerDataType::Timestamp
+            | FuzzerDataType::IntervalMonthDayNano
+            | FuzzerDataType::String => false,
         }
     }
 
@@ -159,7 +165,8 @@ impl FuzzerDataType {
             | FuzzerDataType::Float32
             | FuzzerDataType::Float64
             | FuzzerDataType::Boolean
-            | FuzzerDataType::Decimal => false,
+            | FuzzerDataType::Decimal
+            | FuzzerDataType::String => false,
         }
     }
 
@@ -190,6 +197,7 @@ impl FuzzerDataType {
             FuzzerDataType::Time64Nanosecond => "TIME",
             FuzzerDataType::Timestamp => "TIMESTAMP",
             FuzzerDataType::IntervalMonthDayNano => "INTERVAL",
+            FuzzerDataType::String => "VARCHAR",
         }
     }
 }
@@ -222,6 +230,7 @@ pub fn init_available_data_types() {
             FuzzerDataType::Time64Nanosecond,
             FuzzerDataType::Timestamp,
             FuzzerDataType::IntervalMonthDayNano,
+            FuzzerDataType::String,
         ]
     });
 }

@@ -22,6 +22,7 @@ pub enum GeneratedValue {
     Time64Nanosecond(i64),          // Nanoseconds since midnight
     Timestamp(i64, Option<String>), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC) with optional timezone
     IntervalMonthDayNano(i128),     // MonthDayNano interval as i128 (months, days, nanoseconds)
+    String(String),                 // String value
     Null,
 }
 
@@ -159,6 +160,28 @@ pub fn generate_value(
                 | ((days as i128) & 0xFFFFFFFF)
                 | ((nanoseconds as i128) << 64);
             GeneratedValue::IntervalMonthDayNano(interval_value)
+        }
+        FuzzerDataType::String => {
+            // Generate a random string with reasonable length
+            let length = rng.random_range(1..=50); // 1 to 50 characters
+            let chars: Vec<char> = (0..length)
+                .map(|_| {
+                    // Generate printable ASCII characters, excluding problematic SQL characters
+                    // Exclude: single quote (39), backslash (92), and other SQL-unsafe characters
+                    let safe_chars = [
+                        32, 33, 34, 35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+                        52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+                        71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+                        90, 91, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107,
+                        108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
+                        123, 124, 125, 126,
+                    ];
+                    let char_code = safe_chars[rng.random_range(0..safe_chars.len())];
+                    char::from_u32(char_code).unwrap_or(' ')
+                })
+                .collect();
+            let string_value = chars.into_iter().collect::<String>();
+            GeneratedValue::String(string_value)
         }
     }
 }
@@ -304,6 +327,11 @@ impl GeneratedValue {
                     format!("INTERVAL '{}'", parts.join(" "))
                 }
             }
+            GeneratedValue::String(s) => {
+                // Escape single quotes by doubling them (SQL standard)
+                let escaped = s.replace("'", "''");
+                format!("'{}'", escaped)
+            }
             GeneratedValue::Null => "NULL".to_string(),
         }
     }
@@ -349,6 +377,7 @@ impl GeneratedValue {
                 let interval_value = IntervalMonthDayNano::new(months, days, nanoseconds);
                 ScalarValue::IntervalMonthDayNano(Some(interval_value))
             }
+            GeneratedValue::String(s) => ScalarValue::Utf8(Some(s.clone())),
             GeneratedValue::Null => ScalarValue::Null,
         }
     }
@@ -700,7 +729,6 @@ mod tests {
     #[test]
     fn test_date_generation_validity() {
         // Test that date generation produces valid dates
-        use crate::fuzz_context::RuntimeContext;
 
         let mut rng = rng_from_seed(42);
         let fuzzer_type = FuzzerDataType::Date32;
@@ -763,7 +791,6 @@ mod tests {
     #[test]
     fn test_timestamp_generation_validity() {
         // Test that timestamp generation produces valid timestamps
-        use crate::fuzz_context::RuntimeContext;
 
         let mut rng = rng_from_seed(42);
         let fuzzer_type = FuzzerDataType::Timestamp; // Use the unified Timestamp variant
@@ -1018,5 +1045,76 @@ mod tests {
         assert_eq!(fuzzer_type.to_sql_type(), "INTERVAL");
         assert!(fuzzer_type.is_time());
         assert!(!fuzzer_type.is_numeric());
+    }
+
+    #[test]
+    fn test_string_generation_sql_safety() {
+        // Test that string generation produces SQL-safe strings
+        use crate::fuzz_context::RuntimeContext;
+
+        let mut rng = rng_from_seed(42);
+        let fuzzer_type = FuzzerDataType::String;
+
+        // Use non-nullable configuration for testing
+        let config = ValueGenerationConfig {
+            nullable: false,
+            null_probability: 0.0,
+            int_range: (-100, 100),
+            uint_range: (0, 200),
+            float_range: (-100.0, 100.0),
+        };
+
+        // Generate multiple strings and verify they are SQL-safe
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &fuzzer_type, &config);
+
+            match &value {
+                GeneratedValue::String(s) => {
+                    // Check that the string doesn't contain problematic SQL characters
+                    assert!(!s.contains('\''), "String should not contain single quotes");
+                    assert!(!s.contains('\\'), "String should not contain backslashes");
+
+                    // Test SQL string conversion
+                    let sql_string = value.to_sql_string();
+                    assert!(
+                        sql_string.starts_with("'"),
+                        "SQL string should start with quote"
+                    );
+                    assert!(
+                        sql_string.ends_with("'"),
+                        "SQL string should end with quote"
+                    );
+
+                    // Verify the SQL string is properly formatted
+                    // Remove the outer quotes to get the content
+                    let content = &sql_string[1..sql_string.len() - 1];
+                    // The content should not contain unescaped single quotes
+                    assert!(
+                        !content.contains("'"),
+                        "SQL string content should not contain unescaped single quotes"
+                    );
+                }
+                _ => panic!("Expected String value, got: {:?}", value),
+            }
+        }
+    }
+
+    #[test]
+    fn test_string_escaping() {
+        // Test that strings with single quotes are properly escaped
+        let test_string = "test'string";
+        let value = GeneratedValue::String(test_string.to_string());
+        let sql_string = value.to_sql_string();
+
+        // Should be properly escaped: 'test''string'
+        assert_eq!(sql_string, "'test''string'");
+
+        // Test with multiple single quotes
+        let test_string2 = "test'string'with'quotes";
+        let value2 = GeneratedValue::String(test_string2.to_string());
+        let sql_string2 = value2.to_sql_string();
+
+        // Should be properly escaped: 'test''string''with''quotes'
+        assert_eq!(sql_string2, "'test''string''with''quotes'");
     }
 }

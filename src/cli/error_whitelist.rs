@@ -74,6 +74,8 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("Query execution timed out"),
         // Create view might fail
         ErrorPattern::Contains("Failed to create view"),
+        // Null - Null
+        ErrorPattern::Contains("Cannot get result type for null arithmetic Null - Null"),
         // =========================
         // Known Issues
         // =========================
