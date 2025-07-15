@@ -7,7 +7,11 @@ edition = "2024"
 
 [dependencies]
 datafusion = { path = "../datafusion/datafusion/core" }
-datafusion-test-utils = { package = "test-utils", path = "../datafusion/test-utils" }
+datafusion-functions = { path = "../datafusion/datafusion/functions" }
+# datafusion-test-utils = { package = "test-utils", path = "../datafusion/test-utils" }
+# datafusion = "48.0"
+# datafusion-functions = "48.0"
+# datafusion-test-utils = "48.0"
 tokio = { version = "1.36.0", features = ["full"] }
 strum = { version = "0.27", features = ["derive"] }
 rand = "0.9"

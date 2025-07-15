@@ -138,20 +138,20 @@ impl FuzzerDataType {
             | FuzzerDataType::Float32
             | FuzzerDataType::Float64
             | FuzzerDataType::Decimal => true,
-            FuzzerDataType::Boolean => false,
-            FuzzerDataType::Date32 => false,
-            FuzzerDataType::Time64Nanosecond => false,
-            FuzzerDataType::Timestamp { .. } => false,
-            FuzzerDataType::IntervalMonthDayNano => false,
+            FuzzerDataType::Boolean
+            | FuzzerDataType::Date32
+            | FuzzerDataType::Time64Nanosecond
+            | FuzzerDataType::Timestamp { .. }
+            | FuzzerDataType::IntervalMonthDayNano => false,
         }
     }
 
     pub fn is_time(&self) -> bool {
         match self {
-            FuzzerDataType::Date32 => true,
-            FuzzerDataType::Time64Nanosecond => true,
-            FuzzerDataType::Timestamp { .. } => true,
-            FuzzerDataType::IntervalMonthDayNano => true,
+            FuzzerDataType::Date32
+            | FuzzerDataType::Time64Nanosecond
+            | FuzzerDataType::Timestamp
+            | FuzzerDataType::IntervalMonthDayNano => true,
             FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32

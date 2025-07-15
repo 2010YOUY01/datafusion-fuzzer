@@ -1,5 +1,8 @@
 use datafusion::arrow::datatypes::DataType;
+use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
+use datafusion_functions::datetime;
+use std::sync::Arc;
 
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
 use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types};
@@ -200,6 +203,56 @@ impl BaseExprWithInfo for OrExpr {
             Box::new(child_exprs[0].clone()),
             Operator::Or,
             Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+// ========================
+// Date/Time Functions
+// ========================
+
+/// Example usage (SQL):
+///   select current_date();
+pub struct CurrentDateExpr;
+impl BaseExprWithInfo for CurrentDateExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Date32.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::CurrentDate,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![]], // No arguments
+        }
+    }
+
+    fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
+        let current_date_udf = datetime::current_date();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            current_date_udf,
+            vec![], // No arguments for current_date
+        ))
+    }
+}
+
+/// Example usage (SQL):
+///   select current_time();
+pub struct CurrentTimeExpr;
+impl BaseExprWithInfo for CurrentTimeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Time64Nanosecond.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::CurrentTime,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![]], // No arguments
+        }
+    }
+
+    fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
+        let current_time_udf = datetime::current_time();
+        Expr::ScalarFunction(ScalarFunction::new_udf(
+            current_time_udf,
+            vec![], // No arguments for current_time
         ))
     }
 }
