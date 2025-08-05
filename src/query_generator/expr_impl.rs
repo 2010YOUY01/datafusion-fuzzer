@@ -321,17 +321,15 @@ impl BaseExprWithInfo for ToCharExpr {
         ExprWrapper {
             expr: BaseExpr::ToChar,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::Date32.to_datafusion_type(),
                     FuzzerDataType::Time64Nanosecond.to_datafusion_type(),
                     FuzzerDataType::Timestamp.to_datafusion_type(),
                     FuzzerDataType::IntervalMonthDayNano.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::Fixed(
-                    FuzzerDataType::String.to_datafusion_type(),
-                )],
-            ],
+                ]),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
         }
     }
 
@@ -352,17 +350,15 @@ impl BaseExprWithInfo for DateFormatExpr {
         ExprWrapper {
             expr: BaseExpr::DateFormat,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::Date32.to_datafusion_type(),
                     FuzzerDataType::Time64Nanosecond.to_datafusion_type(),
                     FuzzerDataType::Timestamp.to_datafusion_type(),
                     FuzzerDataType::IntervalMonthDayNano.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::Fixed(
-                    FuzzerDataType::String.to_datafusion_type(),
-                )],
-            ],
+                ]),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
         }
     }
 
@@ -386,18 +382,16 @@ impl BaseExprWithInfo for ToDateExpr {
         ExprWrapper {
             expr: BaseExpr::ToDate,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
                     FuzzerDataType::Float32.to_datafusion_type(),
                     FuzzerDataType::Float64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -444,8 +438,8 @@ impl BaseExprWithInfo for ToTimestampExpr {
         ExprWrapper {
             expr: BaseExpr::ToTimestamp,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
@@ -453,11 +447,9 @@ impl BaseExprWithInfo for ToTimestampExpr {
                     FuzzerDataType::UInt64.to_datafusion_type(),
                     FuzzerDataType::Float32.to_datafusion_type(),
                     FuzzerDataType::Float64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -481,18 +473,16 @@ impl BaseExprWithInfo for ToTimestampMicrosExpr {
         ExprWrapper {
             expr: BaseExpr::ToTimestampMicros,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
                     FuzzerDataType::UInt32.to_datafusion_type(),
                     FuzzerDataType::UInt64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -516,18 +506,16 @@ impl BaseExprWithInfo for ToTimestampMillisExpr {
         ExprWrapper {
             expr: BaseExpr::ToTimestampMillis,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
                     FuzzerDataType::UInt32.to_datafusion_type(),
                     FuzzerDataType::UInt64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -551,18 +539,16 @@ impl BaseExprWithInfo for ToTimestampNanosExpr {
         ExprWrapper {
             expr: BaseExpr::ToTimestampNanos,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
                     FuzzerDataType::UInt32.to_datafusion_type(),
                     FuzzerDataType::UInt64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -586,18 +572,16 @@ impl BaseExprWithInfo for ToTimestampSecondsExpr {
         ExprWrapper {
             expr: BaseExpr::ToTimestampSeconds,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Int32.to_datafusion_type(),
                     FuzzerDataType::Int64.to_datafusion_type(),
                     FuzzerDataType::UInt32.to_datafusion_type(),
                     FuzzerDataType::UInt64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 
@@ -621,18 +605,16 @@ impl BaseExprWithInfo for ToUnixtimeExpr {
         ExprWrapper {
             expr: BaseExpr::ToUnixtime,
             return_type: return_types,
-            inferred_child_signature: vec![
-                vec![TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Date32.to_datafusion_type(),
                     FuzzerDataType::Timestamp.to_datafusion_type(),
                     FuzzerDataType::Float32.to_datafusion_type(),
                     FuzzerDataType::Float64.to_datafusion_type(),
-                ])],
-                vec![TypeGroup::OneOf(vec![
-                    FuzzerDataType::String.to_datafusion_type(),
-                ])], // Optional format strings
-            ],
+                ]),
+                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
+            ]],
         }
     }
 

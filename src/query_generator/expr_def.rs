@@ -62,6 +62,7 @@ impl ExprWrapper {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum TypeGroup {
     /// The type should be the same as the output type of the expression
     SameAsOutput,
@@ -144,16 +145,6 @@ pub fn all_available_exprs() -> &'static [Arc<ExprWrapper>] {
     });
 
     &AVAILABLE_EXPRS
-}
-
-impl Clone for TypeGroup {
-    fn clone(&self) -> Self {
-        match self {
-            TypeGroup::SameAsOutput => TypeGroup::SameAsOutput,
-            TypeGroup::Fixed(dt) => TypeGroup::Fixed(dt.clone()),
-            TypeGroup::OneOf(dts) => TypeGroup::OneOf(dts.clone()),
-        }
-    }
 }
 
 impl TypeGroup {
