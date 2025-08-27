@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use datafusion::{prelude::Expr, sql::unparser::expr_to_sql};
+// use datafusion::sqlparser::ast;
+use datafusion::{
+    prelude::Expr,
+    sql::unparser::expr_to_sql,
+};
 // Removed unused import: IndexedRandom
 use rand::{Rng, RngCore, rngs::StdRng};
 

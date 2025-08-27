@@ -76,12 +76,25 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("Failed to create view"),
         // Null - Null
         ErrorPattern::Contains("Cannot get result type for null arithmetic Null - Null"),
+        ErrorPattern::Contains("regex parse error"),
         // =========================
         // Known Issues
         // =========================
 
         // https://github.com/apache/datafusion/issues/13558
         ErrorPattern::Contains("Projections require unique expression names"),
+        // `Operator::IsDistinctFrom` and `Operator::IsNotDistinctFrom` can not
+        // be unparsed in `expr_to_sql` function
+        ErrorPattern::Contains("unsupported operation: IsNotDistinctFrom"),
+        ErrorPattern::Contains("unsupported operation: IsDistinctFrom"),
+        // More works to be done to generate valid `to_char()` function
+        ErrorPattern::Contains("to_char"),
+        // Adding numeric type with time time might not be supported
+        ErrorPattern::Contains("Cannot infer common argument type for comparison operation"),
+        // =========================
+        // Investigate Later
+        // =========================
+        ErrorPattern::Contains("Cast error: Format error"),
     ]
 });
 

@@ -4,11 +4,13 @@ use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
 use datafusion_functions::datetime;
 
 use super::expr_def::{BaseExpr, BaseExprWithInfo, ExprWrapper, TypeGroup};
-use crate::common::{FuzzerDataType, get_numeric_data_types, get_time_data_types};
+use crate::common::{
+    FuzzerDataType, get_available_data_types, get_numeric_data_types, get_time_data_types,
+};
 
 /// To add new expressions: Add a new variant to [`BaseExpr`] and then follow the pattern along.
 /// - [x] Numeric Operators: +, -, *, /, %
-/// - [ ] Comparison Operators: =, !=, <, <=, >, >=, <=>, IS DISTINCT FROM, IS NOT DISTINCT FROM, ~, ~*, !~, !~*, ~~ (LIKE), ~~* (ILIKE), !~~ (NOT LIKE), !~~* (NOT ILIKE)
+/// - [x] Comparison Operators: =, !=, <, <=, >, >=, <=>, IS DISTINCT FROM, IS NOT DISTINCT FROM, ~, ~*, !~, !~*, ~~ (LIKE), ~~* (ILIKE), !~~ (NOT LIKE), !~~* (NOT ILIKE)
 /// - [x] Logical Operators: AND, OR
 /// - [ ] Bitwise Operators: &, |, #, >>, <<
 /// - [ ] Other Operators: || (concat), @> (contains), <@ (contained by)
@@ -203,6 +205,483 @@ impl BaseExprWithInfo for OrExpr {
         Expr::BinaryExpr(BinaryExpr::new(
             Box::new(child_exprs[0].clone()),
             Operator::Or,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+// ========================
+// Comparison Operators
+// ========================
+pub struct EqExpr;
+impl BaseExprWithInfo for EqExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Eq,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Eq,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct NotEqExpr;
+impl BaseExprWithInfo for NotEqExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::NotEq,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::NotEq,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct LtExpr;
+impl BaseExprWithInfo for LtExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Lt,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Lt,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct LtEqExpr;
+impl BaseExprWithInfo for LtEqExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::LtEq,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::LtEq,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct GtExpr;
+impl BaseExprWithInfo for GtExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Gt,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::Gt,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct GtEqExpr;
+impl BaseExprWithInfo for GtEqExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::GtEq,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .filter(|t| t.is_numeric() || t.is_time())
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::GtEq,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct IsDistinctFromExpr;
+impl BaseExprWithInfo for IsDistinctFromExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::IsDistinctFrom,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::IsDistinctFrom,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct IsNotDistinctFromExpr;
+impl BaseExprWithInfo for IsNotDistinctFromExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::IsNotDistinctFrom,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+                TypeGroup::OneOf(
+                    get_available_data_types()
+                        .iter()
+                        .map(|t| t.to_datafusion_type())
+                        .collect(),
+                ),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::IsNotDistinctFrom,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+// Pattern matching operators
+pub struct LikeExpr;
+impl BaseExprWithInfo for LikeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::Like,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::LikeMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct ILikeExpr;
+impl BaseExprWithInfo for ILikeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::ILike,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::ILikeMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct NotLikeExpr;
+impl BaseExprWithInfo for NotLikeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::NotLike,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::NotLikeMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct NotILikeExpr;
+impl BaseExprWithInfo for NotILikeExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::NotILike,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::NotILikeMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+// Regex operators
+pub struct RegexMatchExpr;
+impl BaseExprWithInfo for RegexMatchExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::RegexMatch,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::RegexMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct RegexIMatchExpr;
+impl BaseExprWithInfo for RegexIMatchExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::RegexIMatch,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::RegexIMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct RegexNotMatchExpr;
+impl BaseExprWithInfo for RegexNotMatchExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::RegexNotMatch,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::RegexNotMatch,
+            Box::new(child_exprs[1].clone()),
+        ))
+    }
+}
+
+pub struct RegexNotIMatchExpr;
+impl BaseExprWithInfo for RegexNotIMatchExpr {
+    fn describe(&self) -> ExprWrapper {
+        let return_types = vec![FuzzerDataType::Boolean.to_datafusion_type()];
+
+        ExprWrapper {
+            expr: BaseExpr::RegexNotIMatch,
+            return_type: return_types,
+            inferred_child_signature: vec![vec![
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+            ]],
+        }
+    }
+
+    fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
+        Expr::BinaryExpr(BinaryExpr::new(
+            Box::new(child_exprs[0].clone()),
+            Operator::RegexNotIMatch,
             Box::new(child_exprs[1].clone()),
         ))
     }

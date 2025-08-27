@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
+use crate::cli::error_whitelist::is_error_whitelisted;
 use crate::common::{LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
@@ -128,7 +129,10 @@ async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result
         let view_sql = match generate_view_sql(&mut stmt_builder, selected_table) {
             Ok(sql) => sql,
             Err(e) => {
-                error!("Failed to generate view SQL: {}", e);
+                let err_msg = format!("Failed to generate view SQL: {}", e);
+                if !is_error_whitelisted(&err_msg) {
+                    error!(err_msg);
+                }
                 continue; // Skip this view and try the next one
             }
         };
@@ -216,7 +220,10 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
     let query_group = match selected_oracle.generate_query_group() {
         Ok(group) => group,
         Err(e) => {
-            error!("Failed to generate query group: {}", e);
+            let err_msg = format!("Failed to generate query group: {}", e);
+            if !is_error_whitelisted(&err_msg) {
+                error!(err_msg)
+            }
             return false;
         }
     };
