@@ -1,4 +1,4 @@
-use crate::common::Result;
+use crate::common::{InclusionConfig, Result};
 use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 use std::sync::Arc;
@@ -27,11 +27,15 @@ impl Oracle for NestedQueriesOracle {
 
     fn generate_query_group(&mut self) -> Result<Vec<QueryContext>> {
         // Generate a single random query using the existing query generator
-        let mut stmt_builder = SelectStatementBuilder::new(self.seed, Arc::clone(&self.ctx))
-            // Enable derived tables (views/subqueries) for nested query testing
-            .with_allow_derived_tables(true)
-            // Avoid huge joins to slow down fuzzing
-            .with_max_table_count(3);
+        let mut stmt_builder = SelectStatementBuilder::new(
+            self.seed,
+            Arc::clone(&self.ctx),
+            InclusionConfig::Maybe(0.2),
+        )
+        // Enable derived tables (views/subqueries) for nested query testing
+        .with_allow_derived_tables(true)
+        // Avoid huge joins to slow down fuzzing
+        .with_max_table_count(3);
         let stmt = stmt_builder.generate_stmt()?;
         let sql = stmt.to_sql_string()?;
 

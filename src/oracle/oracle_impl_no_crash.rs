@@ -1,4 +1,4 @@
-use crate::common::Result;
+use crate::common::{InclusionConfig, Result};
 use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 use std::sync::Arc;
@@ -31,9 +31,13 @@ impl Oracle for NoCrashOracle {
 
     fn generate_query_group(&mut self) -> Result<Vec<QueryContext>> {
         // Generate a single random query using the existing query generator
-        let mut stmt_builder = SelectStatementBuilder::new(self.seed, Arc::clone(&self.ctx))
-            // Views/subqueries are tested by other oracles
-            .with_allow_derived_tables(false);
+        let mut stmt_builder = SelectStatementBuilder::new(
+            self.seed,
+            Arc::clone(&self.ctx),
+            InclusionConfig::Maybe(0.9),
+        )
+        // Views/subqueries are tested by other oracles
+        .with_allow_derived_tables(false);
         let stmt = stmt_builder.generate_stmt()?;
         let sql = stmt.to_sql_string()?;
 

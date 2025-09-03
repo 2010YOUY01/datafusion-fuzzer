@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 // use datafusion::sqlparser::ast;
-use datafusion::{
-    prelude::Expr,
-    sql::unparser::expr_to_sql,
-};
+use datafusion::{prelude::Expr, sql::unparser::expr_to_sql};
 // Removed unused import: IndexedRandom
 use rand::{Rng, RngCore, rngs::StdRng};
 
 use crate::{
-    common::{LogicalTable, Result, fuzzer_err, get_available_data_types, rng::rng_from_seed},
+    common::{
+        InclusionConfig, LogicalTable, Result, fuzzer_err, get_available_data_types,
+        rng::rng_from_seed,
+    },
     fuzz_context::GlobalContext,
 };
 
@@ -88,25 +88,32 @@ pub struct SelectStatementBuilder {
     // 1. Global configuration
     // 2. Oracle-specific requirements (e.g., limiting tables for view testing, and
     // there won't be large joins, the fuzzing speed can be improved)
-
-    // Max number of tables in the `FROM` clause
+    /// Max number of tables in the `FROM` clause
     max_table_count: Option<u32>,
 
     // Allow using views and subqueries in the FROM clause
     allow_derived_tables: bool,
+
+    // ---- SQL Features Configurations ----
+    enable_where_clause: InclusionConfig,
 
     // ==== Intermediate states to build the final select stmt ====
     src_tables: Vec<LogicalTable>,
 }
 
 impl SelectStatementBuilder {
-    pub fn new(seed: u64, context: Arc<GlobalContext>) -> Self {
+    pub fn new(
+        seed: u64,
+        context: Arc<GlobalContext>,
+        enable_where_clause: InclusionConfig,
+    ) -> Self {
         Self {
             rng: rng_from_seed(seed),
             ctx: context,
             max_table_count: None,
             allow_derived_tables: false,
             src_tables: Vec::new(),
+            enable_where_clause,
         }
     }
 
@@ -204,8 +211,8 @@ impl SelectStatementBuilder {
 
     /// Generate a random WHERE clause expression (returns None for no WHERE clause)
     fn generate_where_clause(&mut self, expr_gen: &mut ExprGenerator) -> Result<Option<Expr>> {
-        // 50% chance to generate a WHERE clause
-        if self.rng.random_bool(0.9) {
+        // Decide if the WHERE clause should be generated
+        if self.enable_where_clause.should_enable(Some(&mut self.rng)) {
             // Generate a boolean expression for the WHERE clause
             let where_expr =
                 expr_gen.generate_random_expr(datafusion::arrow::datatypes::DataType::Boolean, 0);

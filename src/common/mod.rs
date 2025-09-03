@@ -336,6 +336,41 @@ pub fn fuzzer_err(msg: &str) -> FuzzerError {
     FuzzerError::FuzzerError(msg.to_string())
 }
 
+// ====
+// Configuration related
+// ====
+
+/// Controls whether a feature is always included, always excluded, or included with a certain probability.
+///
+/// - `Always(true)` means 100% chance to include the feature.
+/// - `Maybe(0.2)` means 20% chance to include the feature.
+///
+/// Use [`should_enable`] to decide if the feature should be included.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InclusionConfig {
+    Always(bool),
+    Maybe(f64),
+}
+
+impl InclusionConfig {
+    /// Decide if the feature should be included.
+    /// - If `Always(true)`, returns true.
+    /// - If `Always(false)`, returns false.
+    /// - If `Probability(p)`, returns true with probability `p` using the provided RNG.
+    ///
+    /// # Panics
+    /// Panics if `Probability` variant is used and `rng` is `None`.
+    pub fn should_enable<R: rand::Rng>(&self, rng: Option<&mut R>) -> bool {
+        match self {
+            InclusionConfig::Always(val) => *val,
+            InclusionConfig::Maybe(prob) => {
+                let rng = rng.expect("RNG must be provided for probabilistic InclusionConfig");
+                rng.random_bool(*prob)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

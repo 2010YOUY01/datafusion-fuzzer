@@ -7,7 +7,7 @@ use std::time::Duration;
 use tracing::{error, info, warn};
 
 use crate::cli::error_whitelist::is_error_whitelisted;
-use crate::common::{LogicalTable, Result};
+use crate::common::{InclusionConfig, LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
@@ -115,9 +115,10 @@ async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result
     info!("Generating {} views", num_views);
 
     // Create a single statement builder for all views in this round
-    let mut stmt_builder = SelectStatementBuilder::new(seed, Arc::clone(ctx))
-        // Avoid large joins to slow down fuzzing
-        .with_max_table_count(3);
+    let mut stmt_builder =
+        SelectStatementBuilder::new(seed, Arc::clone(ctx), InclusionConfig::Maybe(0.5))
+            // Avoid large joins to slow down fuzzing
+            .with_max_table_count(3);
 
     for i in 0..num_views {
         // Pick a random table to create a view from
