@@ -35,6 +35,7 @@ impl Oracle for NoCrashOracle {
             self.seed,
             Arc::clone(&self.ctx),
             InclusionConfig::Maybe(0.9),
+            InclusionConfig::Maybe(0.5),
         )
         // Views/subqueries are tested by other oracles
         .with_allow_derived_tables(false);

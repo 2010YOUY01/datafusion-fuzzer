@@ -77,6 +77,8 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         // Null - Null
         ErrorPattern::Contains("Cannot get result type for null arithmetic Null - Null"),
         ErrorPattern::Contains("regex parse error"),
+        // Invalid JOIN ON expression like '... t1 natural join t2 on true'
+        ErrorPattern::Contains("SQL error: ParserError(\"Expected: end of statement, found: ON\")"),
         // =========================
         // Known Issues
         // =========================
@@ -91,6 +93,10 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("to_char"),
         // Adding numeric type with time time might not be supported
         ErrorPattern::Contains("Cannot infer common argument type for comparison operation"),
+        // https://github.com/apache/datafusion/issues/17387
+        ErrorPattern::Contains("Invalid arithmetic operation: Null % Null"),
+        // https://github.com/apache/datafusion/issues/17390
+        ErrorPattern::Contains("Schema error: No field named"),
         // =========================
         // Investigate Later
         // =========================

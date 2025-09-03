@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 use datafusion::{arrow::datatypes::DataType, error::DataFusionError};
 
 pub mod rng;
+pub mod util;
 pub mod value_generator;
 
 // How to add a new data type:

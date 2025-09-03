@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 // use datafusion::sqlparser::ast;
-use datafusion::{prelude::Expr, sql::unparser::expr_to_sql};
+use datafusion::{arrow::datatypes::DataType, prelude::Expr};
 // Removed unused import: IndexedRandom
-use rand::{Rng, RngCore, rngs::StdRng};
+use rand::{Rng, RngCore, rngs::StdRng, seq::SliceRandom};
 
 use crate::{
     common::{
@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::expr_gen::ExprGenerator;
+use super::stmt_select_join::{JoinClause, JoinType};
 
 // ================
 // Select Statement
@@ -21,12 +22,16 @@ use super::expr_gen::ExprGenerator;
 pub struct SelectStatement {
     select_exprs: Vec<Expr>,
     from_clause: FromClause,
+    /// Empty vector means no JOIN clauses
+    join_clauses: Vec<Arc<JoinClause>>,
+    /// None means no WHERE clause
     where_clause: Option<Expr>,
 }
 
 impl SelectStatement {
     /// Formats the SELECT statement as a SQL string with pretty formatting
     pub fn to_sql_string(&self) -> Result<String> {
+        // ==== SELECT clause ====
         let mut sql = String::from("SELECT ");
 
         if self.select_exprs.is_empty() {
@@ -36,13 +41,14 @@ impl SelectStatement {
                 .select_exprs
                 .iter()
                 .map(|expr| {
-                    let unparsed_expr = expr_to_sql(expr)?;
-                    Ok(unparsed_expr.to_string())
+                    let unparsed_expr = crate::common::util::to_sql_string(expr)?;
+                    Ok(unparsed_expr)
                 })
                 .collect();
             sql.push_str(&expr_strings?.join(", "));
         }
 
+        // ==== FROM clause ====
         sql.push_str("\nFROM ");
 
         let table_strings: Vec<String> = self
@@ -60,9 +66,16 @@ impl SelectStatement {
 
         sql.push_str(&table_strings.join(", "));
 
+        // ==== JOIN clauses ====
+        for join_clause in &self.join_clauses {
+            let join_string = join_clause.to_sql_string()?;
+            sql.push_str(&format!("\n{}", join_string));
+        }
+
+        // ==== WHERE clause ====
         // Add WHERE clause if present
         if let Some(where_expr) = &self.where_clause {
-            let where_string = expr_to_sql(where_expr)?;
+            let where_string = crate::common::util::to_sql_string(where_expr)?;
             sql.push_str(&format!("\nWHERE {}", where_string));
         }
 
@@ -72,12 +85,21 @@ impl SelectStatement {
 
 struct FromClause {
     // vector of (table, alias)
-    from_list: Vec<(LogicalTable, Option<String>)>,
+    from_list: Vec<(Arc<LogicalTable>, Option<String>)>,
 }
 
 // ================
 // Select Builder
 // ================
+
+/// Generates SELECT statement:
+///
+/// SELECT (* | select_expr [, ...])
+/// [ FROM from_table [, ...] ]
+/// [ JOIN_KEYWORD join_table ON join_on_expr ]
+/// [ WHERE where_expr ]
+///
+/// JOIN_KEYWORD := JOIN | INNER JOIN | LEFT JOIN | RIGHT JOIN | FULL JOIN | LEFT ANTI JOIN | LEFT SEMI JOIN | RIGHT ANTI JOIN | RIGHT SEMI JOIN | CROSS JOIN
 pub struct SelectStatementBuilder {
     rng: StdRng,
     ctx: Arc<GlobalContext>,
@@ -96,9 +118,16 @@ pub struct SelectStatementBuilder {
 
     // ---- SQL Features Configurations ----
     enable_where_clause: InclusionConfig,
+    /// Control whether JOIN clauses are generated
+    enable_join_clause: InclusionConfig,
 
     // ==== Intermediate states to build the final select stmt ====
-    src_tables: Vec<LogicalTable>,
+    /// Tables in the FROM clause
+    /// Initialized to empty, will be constructed during the stmt build
+    from_tables: Vec<Arc<LogicalTable>>,
+    /// Join Clauses
+    /// Initialized to empty, will be constructed during the stmt build
+    join_clauses: Vec<Arc<JoinClause>>,
 }
 
 impl SelectStatementBuilder {
@@ -106,14 +135,17 @@ impl SelectStatementBuilder {
         seed: u64,
         context: Arc<GlobalContext>,
         enable_where_clause: InclusionConfig,
+        enable_join_clause: InclusionConfig,
     ) -> Self {
         Self {
             rng: rng_from_seed(seed),
             ctx: context,
             max_table_count: None,
             allow_derived_tables: false,
-            src_tables: Vec::new(),
+            from_tables: Vec::new(),
+            join_clauses: Vec::new(),
             enable_where_clause,
+            enable_join_clause,
         }
     }
 
@@ -131,13 +163,18 @@ impl SelectStatementBuilder {
     }
 
     pub fn generate_stmt(&mut self) -> Result<SelectStatement> {
-        // 1. Pick src tables
-        self.pick_src_tables()?;
+        // ==== Pick src tables ====
+        let src_tables = self.pick_src_tables()?;
 
-        // 2. Generate select exprs
+        // ==== Generate FROM list and JOIN clauses ====
+        let (from_tables, join_clauses) = self.partition_tables_into_from_and_joins(src_tables)?;
+        self.from_tables = from_tables;
+        self.join_clauses = join_clauses;
+
+        // ==== Generate select exprs ====
         let expr_seed = self.rng.next_u64();
         let expr_gen = ExprGenerator::new(expr_seed, self.ctx.clone());
-        let src_columns = ExprGenerator::tables_to_columns(&self.src_tables, &self.ctx);
+        let src_columns = ExprGenerator::tables_to_columns(&self.from_tables, &self.ctx);
         let mut expr_gen = expr_gen.with_src_columns(Arc::new(src_columns));
 
         // Build SELECT clause: generate expression list
@@ -151,23 +188,21 @@ impl SelectStatementBuilder {
             select_exprs,
             from_clause: FromClause {
                 from_list: self
-                    .src_tables
+                    .from_tables
                     .iter()
                     .map(|table| (table.clone(), None))
                     .collect(),
             },
+            join_clauses: self.join_clauses.clone(),
             where_clause,
         })
     }
 
     // ==== Helper functions for `generate_stmt()` ====
-    pub fn pick_src_tables(&mut self) -> Result<()> {
+    pub fn pick_src_tables(&mut self) -> Result<Vec<Arc<LogicalTable>>> {
         // TODO: Support duplicate table like `... from t1, t1 as t1_2` in the future
 
-        // Clear existing tables to avoid accumulation when builder is reused
-        self.src_tables.clear();
-
-        // ==== Pick some unique tables and store inside builder ====
+        // ==== Pick some unique tables and return them ====
         // Use local override if available, otherwise use global config
         let cfg_max_table_count = self
             .max_table_count
@@ -201,12 +236,98 @@ impl SelectStatementBuilder {
             }
             let index = self.rng.random_range(0..available_tables_clone.len());
             let table = available_tables_clone.remove(index);
-            selected_tables.push((*table).clone());
+            selected_tables.push(Arc::clone(&table));
         }
 
-        self.src_tables.extend(selected_tables);
+        Ok(selected_tables)
+    }
 
-        Ok(())
+    /// Partition source tables into FROM tables and JOIN clauses
+    /// Returns (from_tables, join_clauses) as a pure function
+    ///
+    /// This function is a pure function, it doesn't modify self's inner states,
+    /// `&mut self` is used only for `rng`
+    fn partition_tables_into_from_and_joins(
+        &mut self,
+        mut src_tables: Vec<Arc<LogicalTable>>,
+    ) -> Result<(Vec<Arc<LogicalTable>>, Vec<Arc<JoinClause>>)> {
+        // e.g. the src tables are t1, t2, t3, t4
+        // it might choose FROM tables t1, t2, and JOIN tables t3, t4
+        // the generated query will look like
+        //  SELECT *
+        //  FROM t1, t2
+        //  JOIN t3 ON ...
+        //  JOIN t4 ON ...
+        //  WHERE ...
+
+        // Randomize the source table order first
+        src_tables.shuffle(&mut self.rng);
+
+        // If JOIN generation is disabled, place all tables in FROM and return no JOINs
+        if !self.enable_join_clause.should_enable(Some(&mut self.rng)) {
+            return Ok((src_tables, Vec::new()));
+        }
+
+        // Randomly split the src tables into from_tables and join_tables
+        let split_index = self.rng.random_range(1..=src_tables.len());
+
+        // Next, build the join expressions iteratively
+        // e.g.
+        // select *
+        // from t1
+        // join t2 on (expr_ref_t1_t2)
+        // join t3 on (expr_ref_t1_t2_t3)
+
+        // For the current iteration for building `JOIN ON` clause, the referenced
+        // tables
+        let mut referenced_tables = src_tables[..split_index].to_vec();
+        let join_tables = src_tables[split_index..].to_vec();
+        let from_tables = referenced_tables.clone();
+
+        let mut join_clauses = Vec::new();
+
+        for join_table in join_tables {
+            // Build join on expression
+            let src_columns = ExprGenerator::tables_to_columns(&referenced_tables, &self.ctx);
+            let mut expr_gen = ExprGenerator::new(self.rng.next_u64(), self.ctx.clone())
+                .with_src_columns(Arc::new(src_columns));
+            // TODO(coverage): generate the expression with columns in all src
+            // tables, this way we can test some invalid expressions like
+            // select * from t1 join t2 on t1.v1=t3.v1;
+
+            let join_type = JoinType::get_random(&mut self.rng);
+
+            let join_on_expr = expr_gen.generate_random_expr(DataType::Boolean, 0);
+            let join_on_expr = {
+                // Genreate some invalid expr for better coverage
+                let flip = self.rng.random_bool(0.01);
+                match join_type {
+                    JoinType::CrossJoin | JoinType::NaturalJoin => {
+                        if flip {
+                            Some(Arc::new(join_on_expr))
+                        } else {
+                            None
+                        }
+                    }
+                    _ => {
+                        if flip {
+                            None
+                        } else {
+                            Some(Arc::new(join_on_expr))
+                        }
+                    }
+                }
+            };
+
+            join_clauses.push(Arc::new(JoinClause {
+                join_table: Arc::clone(&join_table),
+                join_type,
+                join_on_expr,
+            }));
+            referenced_tables.push(join_table);
+        }
+
+        Ok((from_tables, join_clauses))
     }
 
     /// Generate a random WHERE clause expression (returns None for no WHERE clause)

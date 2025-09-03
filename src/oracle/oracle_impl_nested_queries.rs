@@ -31,6 +31,7 @@ impl Oracle for NestedQueriesOracle {
             self.seed,
             Arc::clone(&self.ctx),
             InclusionConfig::Maybe(0.2),
+            InclusionConfig::Maybe(0.2),
         )
         // Enable derived tables (views/subqueries) for nested query testing
         .with_allow_derived_tables(true)

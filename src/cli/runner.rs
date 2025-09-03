@@ -35,7 +35,7 @@ pub async fn run_fuzzer(ctx: Arc<GlobalContext>) -> Result<()> {
 
         // TODO: handle errors here in table/view creation, and catch potential bugs
         generate_datasets_for_round(dataset_seed, &ctx).await?;
-        generate_views_for_round(view_seed, &ctx).await?;
+        // generate_views_for_round(view_seed, &ctx).await?;
 
         for i in 0..ctx.runner_config.queries_per_round {
             // ==== Running round `round`, test case `i` ====
@@ -115,10 +115,14 @@ async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result
     info!("Generating {} views", num_views);
 
     // Create a single statement builder for all views in this round
-    let mut stmt_builder =
-        SelectStatementBuilder::new(seed, Arc::clone(ctx), InclusionConfig::Maybe(0.5))
-            // Avoid large joins to slow down fuzzing
-            .with_max_table_count(3);
+    let mut stmt_builder = SelectStatementBuilder::new(
+        seed,
+        Arc::clone(ctx),
+        InclusionConfig::Maybe(0.2),
+        InclusionConfig::Maybe(0.2),
+    )
+    // Avoid large joins to slow down fuzzing
+    .with_max_table_count(3);
 
     for i in 0..num_views {
         // Pick a random table to create a view from

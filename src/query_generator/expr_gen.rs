@@ -39,11 +39,15 @@ impl ExprGenerator {
     }
 
     /// Helper function to convert a vector of LogicalTable to a vector of Column references
-    pub fn tables_to_columns(tables: &[LogicalTable], _ctx: &Arc<GlobalContext>) -> Vec<Column> {
+    pub fn tables_to_columns(
+        tables: &[Arc<LogicalTable>],
+        _ctx: &Arc<GlobalContext>,
+    ) -> Vec<Column> {
         let mut columns = Vec::new();
 
         for table in tables {
             let table_ref = TableReference::bare(table.name.clone());
+            let table = table.as_ref();
 
             // Use the actual column information from the table
             for logical_column in &table.columns {
