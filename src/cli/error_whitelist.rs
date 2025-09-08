@@ -8,6 +8,11 @@ pub enum ErrorPattern {
     Contains(&'static str),
     /// Regex pattern match - checks if the error message matches this regex pattern
     RegexMatch(&'static str),
+    /// Combined condition: query SQL contains a substring AND error contains a substring
+    QueryAndErrorContains {
+        query_sub: &'static str,
+        error_sub: &'static str,
+    },
 }
 
 /// Configuration for error whitelist patterns
@@ -76,9 +81,34 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("Failed to create view"),
         // Null - Null
         ErrorPattern::Contains("Cannot get result type for null arithmetic Null - Null"),
-        ErrorPattern::Contains("regex parse error"),
+        // Only whitelist regex parse errors when query uses regexp-related function
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "regexp_replace(",
+            error_sub: "regex parse error",
+        },
         // Invalid JOIN ON expression like '... t1 natural join t2 on true'
         ErrorPattern::Contains("SQL error: ParserError(\"Expected: end of statement, found: ON\")"),
+        // For anti joins, the fuzzer might generate join predicates that referencing
+        // eliminated columns from anti joins, example (note t0.flag is a valid column
+        // from t0, but it's eliminated by the first RIGHT ANTI JOIN):
+        // SELECT *
+        // FROM t0
+        // RIGHT ANTI JOIN t1 ON TRUE
+        // RIGHT ANTI JOIN t2 ON t0.flag;
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "ANTI JOIN",
+            error_sub: "Schema error: No field named",
+        },
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "to_date(",
+            error_sub: "Casting from",
+        },
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "to_char(",
+            error_sub: "Cannot cast",
+        },
+        ErrorPattern::Contains("Regular expression did not compile"),
+        ErrorPattern::Contains("to_unixtime function unsupported data type"),
         // =========================
         // Known Issues
         // =========================
@@ -97,10 +127,17 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
         ErrorPattern::Contains("Invalid arithmetic operation: Null % Null"),
         // https://github.com/apache/datafusion/issues/17390
         ErrorPattern::Contains("Schema error: No field named"),
+        // https://github.com/apache/datafusion/issues/17472
+        ErrorPattern::Contains("to_local_time"),
         // =========================
         // Investigate Later
         // =========================
         ErrorPattern::Contains("Cast error: Format error"),
+        ErrorPattern::Contains("to_date"),
+        // This is function taking a invalid regex, but triggered a confusing optimizer
+        // error -- I think the best thing to do is provide better error message
+        ErrorPattern::Contains("Optimizer rule 'simplify_expressions' failed"),
+        ErrorPattern::Contains("to_timestamp"),
     ]
 });
 
@@ -117,6 +154,7 @@ static COMPILED_REGEXES: LazyLock<Vec<Option<Regex>>> = LazyLock::new(|| {
                     None
                 }
             },
+            ErrorPattern::QueryAndErrorContains { .. } => None,
         })
         .collect()
 });
@@ -128,6 +166,7 @@ static COMPILED_REGEXES: LazyLock<Vec<Option<Regex>>> = LazyLock::new(|| {
 ///
 /// # Arguments
 /// * `error_msg` - The error message to check
+/// * `query_sql` - The SQL text for the query that produced the error, if available
 ///
 /// # Returns
 /// * `true` if the error message matches any whitelisted pattern
@@ -138,13 +177,13 @@ static COMPILED_REGEXES: LazyLock<Vec<Option<Regex>>> = LazyLock::new(|| {
 /// use datafusion_fuzzer::cli::error_whitelist::is_error_whitelisted;
 ///
 /// // These should match if the patterns are configured
-/// assert!(is_error_whitelisted("Query failed: Arrow error: Divide by zero error"));
-/// assert!(is_error_whitelisted("Some context: Arrow error: Divide by zero error here"));
+/// assert!(is_error_whitelisted("Query failed: Arrow error: Divide by zero error", None));
+/// assert!(is_error_whitelisted("Some context: Arrow error: Divide by zero error here", None));
 ///
 /// // This should not match
-/// assert!(!is_error_whitelisted("Unexpected segmentation fault"));
+/// assert!(!is_error_whitelisted("Unexpected segmentation fault", None));
 /// ```
-pub fn is_error_whitelisted(error_msg: &str) -> bool {
+pub fn is_error_whitelisted(error_msg: &str, query_sql: Option<&str>) -> bool {
     for (i, pattern) in ERROR_PATTERNS.iter().enumerate() {
         match pattern {
             ErrorPattern::Contains(exact_str) => {
@@ -155,6 +194,16 @@ pub fn is_error_whitelisted(error_msg: &str) -> bool {
             ErrorPattern::RegexMatch(_) => {
                 if let Some(Some(regex)) = COMPILED_REGEXES.get(i) {
                     if regex.is_match(error_msg) {
+                        return true;
+                    }
+                }
+            }
+            ErrorPattern::QueryAndErrorContains {
+                query_sub,
+                error_sub,
+            } => {
+                if let Some(sql) = query_sql {
+                    if sql.contains(query_sub) && error_msg.contains(error_sub) {
                         return true;
                     }
                 }
@@ -172,6 +221,15 @@ pub fn get_configured_patterns() -> Vec<String> {
         .map(|pattern| match pattern {
             ErrorPattern::Contains(s) => format!("Exact: {}", s),
             ErrorPattern::RegexMatch(s) => format!("Regex: {}", s),
+            ErrorPattern::QueryAndErrorContains {
+                query_sub,
+                error_sub,
+            } => {
+                format!(
+                    "QueryAndError: query contains '{}' AND error contains '{}'",
+                    query_sub, error_sub
+                )
+            }
         })
         .collect()
 }

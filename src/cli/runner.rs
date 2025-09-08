@@ -135,7 +135,7 @@ async fn generate_views_for_round(seed: u64, ctx: &Arc<GlobalContext>) -> Result
             Ok(sql) => sql,
             Err(e) => {
                 let err_msg = format!("Failed to generate view SQL: {}", e);
-                if !is_error_whitelisted(&err_msg) {
+                if !is_error_whitelisted(&err_msg, None) {
                     error!(err_msg);
                 }
                 continue; // Skip this view and try the next one
@@ -226,7 +226,7 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
         Ok(group) => group,
         Err(e) => {
             let err_msg = format!("Failed to generate query group: {}", e);
-            if !is_error_whitelisted(&err_msg) {
+            if !is_error_whitelisted(&err_msg, None) {
                 error!(err_msg)
             }
             return false;
@@ -307,7 +307,7 @@ async fn execute_single_query(
     // Check if error is whitelisted using the dedicated error_whitelist module
     if let Err(ref e) = outcome.result {
         let error_msg = e.to_string();
-        if !error_whitelist::is_error_whitelisted(&error_msg) {
+        if !error_whitelist::is_error_whitelisted(&error_msg, Some(&query_context.query)) {
             // Log non-whitelisted errors
             error!("Non-whitelisted error encountered: {}", error_msg);
             error!("Query that caused the error: {}", query_context.query);
