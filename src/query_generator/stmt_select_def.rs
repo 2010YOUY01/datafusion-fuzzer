@@ -29,6 +29,36 @@ pub struct SelectStatement {
 }
 
 impl SelectStatement {
+    fn format_from_tables_sql(&self) -> String {
+        self.from_clause
+            .from_list
+            .iter()
+            .map(|(table, alias)| {
+                if let Some(alias_name) = alias {
+                    format!("{} AS {}", table.name, alias_name)
+                } else {
+                    table.name.clone()
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(", ")
+    }
+
+    /// Formats the FROM and optional JOIN section as SQL.
+    pub fn to_from_join_sql(&self) -> Result<String> {
+        let mut sql = format!("FROM {}", self.format_from_tables_sql());
+        for join_clause in &self.join_clauses {
+            let join_string = join_clause.to_sql_string()?;
+            sql.push_str(&format!("\n{}", join_string));
+        }
+        Ok(sql)
+    }
+
+    /// Returns the WHERE expression if one was generated.
+    pub fn where_expr(&self) -> Option<&Expr> {
+        self.where_clause.as_ref()
+    }
+
     /// Formats the SELECT statement as a SQL string with pretty formatting
     pub fn to_sql_string(&self) -> Result<String> {
         // ==== SELECT clause ====
@@ -48,29 +78,9 @@ impl SelectStatement {
             sql.push_str(&expr_strings?.join(", "));
         }
 
-        // ==== FROM clause ====
-        sql.push_str("\nFROM ");
-
-        let table_strings: Vec<String> = self
-            .from_clause
-            .from_list
-            .iter()
-            .map(|(table, alias)| {
-                if let Some(alias_name) = alias {
-                    format!("{} AS {}", table.name, alias_name)
-                } else {
-                    table.name.clone()
-                }
-            })
-            .collect();
-
-        sql.push_str(&table_strings.join(", "));
-
-        // ==== JOIN clauses ====
-        for join_clause in &self.join_clauses {
-            let join_string = join_clause.to_sql_string()?;
-            sql.push_str(&format!("\n{}", join_string));
-        }
+        // ==== FROM/JOIN clauses ====
+        sql.push('\n');
+        sql.push_str(&self.to_from_join_sql()?);
 
         // ==== WHERE clause ====
         // Add WHERE clause if present

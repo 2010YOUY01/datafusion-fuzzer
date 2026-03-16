@@ -11,7 +11,7 @@ use crate::common::{InclusionConfig, LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
-use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult};
+use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult, TlpWhereOracle};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::error_whitelist;
@@ -214,6 +214,7 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
     // TODO: disabled views since joining too many table is slow
     let available_oracles: Vec<Box<dyn Oracle + Send>> = vec![
         Box::new(NoCrashOracle::new(seed, Arc::clone(ctx))),
+        Box::new(TlpWhereOracle::new(seed, Arc::clone(ctx))),
         // Box::new(NestedQueriesOracle::new(seed, Arc::clone(ctx))),
     ];
     let oracle_index = rng.random_range(0..available_oracles.len());
