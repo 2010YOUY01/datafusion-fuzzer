@@ -5,6 +5,7 @@ pub mod oracle_impl_nested_queries;
 pub mod oracle_impl_no_crash;
 pub mod oracle_impl_tlp_where;
 pub mod oracle_trait;
+pub(crate) mod tlp_shared;
 
 // Re-export main types and traits
 pub use oracle_impl_nested_queries::NestedQueriesOracle;
