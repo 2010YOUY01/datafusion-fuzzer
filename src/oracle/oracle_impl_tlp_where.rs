@@ -10,6 +10,22 @@ use std::sync::Arc;
 ///
 /// It validates value-level multiset equivalence:
 /// q_all == q_p UNION ALL q_not_p UNION ALL q_p_is_null
+///
+/// ### Example:
+///
+/// SELECT * FROM t;
+///
+/// should return the same multiset as
+///
+/// SELECT * FROM t
+/// WHERE date_col = DATE '2000-01-01'
+/// UNION ALL
+/// SELECT * FROM t
+/// WHERE NOT (date_col = DATE '2000-01-01')
+/// UNION ALL
+/// SELECT * FROM t
+/// WHERE (date_col = DATE '2000-01-01') IS NULL;
+///
 pub struct TlpWhereOracle {
     seed: u64,
     ctx: Arc<crate::fuzz_context::GlobalContext>,
