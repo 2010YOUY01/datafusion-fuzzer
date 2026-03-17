@@ -1050,7 +1050,6 @@ mod tests {
     #[test]
     fn test_string_generation_sql_safety() {
         // Test that string generation produces SQL-safe strings
-        
 
         let mut rng = rng_from_seed(42);
         let fuzzer_type = FuzzerDataType::String;

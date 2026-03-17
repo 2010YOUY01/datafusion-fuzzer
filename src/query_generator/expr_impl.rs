@@ -1,4 +1,5 @@
 use datafusion::arrow::datatypes::DataType;
+use datafusion::config::ConfigOptions;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
 use datafusion_functions::datetime;
@@ -753,7 +754,8 @@ impl BaseExprWithInfo for NowExpr {
     }
 
     fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
-        let now_udf = datetime::now();
+        let config = ConfigOptions::new();
+        let now_udf = datetime::now(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             now_udf,
             vec![], // No arguments for now
@@ -777,7 +779,8 @@ impl BaseExprWithInfo for CurrentTimestampExpr {
     }
 
     fn build_expr(&self, _child_exprs: &[Expr]) -> Expr {
-        let current_timestamp_udf = datetime::now(); // Same as now()
+        let config = ConfigOptions::new();
+        let current_timestamp_udf = datetime::now(&config); // Same as now()
         Expr::ScalarFunction(ScalarFunction::new_udf(
             current_timestamp_udf,
             vec![], // No arguments for current_timestamp
@@ -933,7 +936,8 @@ impl BaseExprWithInfo for ToTimestampExpr {
     }
 
     fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
-        let to_timestamp_udf = datetime::to_timestamp();
+        let config = ConfigOptions::new();
+        let to_timestamp_udf = datetime::to_timestamp(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             to_timestamp_udf,
             child_exprs.to_vec(),
@@ -966,7 +970,8 @@ impl BaseExprWithInfo for ToTimestampMicrosExpr {
     }
 
     fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
-        let to_timestamp_micros_udf = datetime::to_timestamp_micros();
+        let config = ConfigOptions::new();
+        let to_timestamp_micros_udf = datetime::to_timestamp_micros(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             to_timestamp_micros_udf,
             child_exprs.to_vec(),
@@ -999,7 +1004,8 @@ impl BaseExprWithInfo for ToTimestampMillisExpr {
     }
 
     fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
-        let to_timestamp_millis_udf = datetime::to_timestamp_millis();
+        let config = ConfigOptions::new();
+        let to_timestamp_millis_udf = datetime::to_timestamp_millis(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             to_timestamp_millis_udf,
             child_exprs.to_vec(),
@@ -1032,7 +1038,8 @@ impl BaseExprWithInfo for ToTimestampNanosExpr {
     }
 
     fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
-        let to_timestamp_nanos_udf = datetime::to_timestamp_nanos();
+        let config = ConfigOptions::new();
+        let to_timestamp_nanos_udf = datetime::to_timestamp_nanos(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             to_timestamp_nanos_udf,
             child_exprs.to_vec(),
@@ -1065,7 +1072,8 @@ impl BaseExprWithInfo for ToTimestampSecondsExpr {
     }
 
     fn build_expr(&self, child_exprs: &[Expr]) -> Expr {
-        let to_timestamp_seconds_udf = datetime::to_timestamp_seconds();
+        let config = ConfigOptions::new();
+        let to_timestamp_seconds_udf = datetime::to_timestamp_seconds(&config);
         Expr::ScalarFunction(ScalarFunction::new_udf(
             to_timestamp_seconds_udf,
             child_exprs.to_vec(),
