@@ -1,9 +1,8 @@
+use crate::common::util;
 use crate::common::{InclusionConfig, Result, fuzzer_err};
+use crate::oracle::oracle_common;
 use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
-use datafusion::arrow::array::RecordBatch;
-use datafusion::scalar::ScalarValue;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// TLP-WHERE oracle.
@@ -34,107 +33,6 @@ pub struct TlpWhereOracle {
 impl TlpWhereOracle {
     pub fn new(seed: u64, ctx: Arc<crate::fuzz_context::GlobalContext>) -> Self {
         Self { seed, ctx }
-    }
-
-    fn batches_to_row_multiset(
-        batches: &[RecordBatch],
-    ) -> Result<HashMap<Vec<ScalarValue>, usize>> {
-        let mut multiset: HashMap<Vec<ScalarValue>, usize> = HashMap::new();
-        let mut expected_num_cols: Option<usize> = None;
-
-        for batch in batches {
-            if let Some(expected) = expected_num_cols {
-                if batch.num_columns() != expected {
-                    return Err(fuzzer_err(&format!(
-                        "Mismatched column count across batches: expected {}, got {}",
-                        expected,
-                        batch.num_columns()
-                    )));
-                }
-            } else {
-                expected_num_cols = Some(batch.num_columns());
-            }
-
-            let num_cols = batch.num_columns();
-            let num_rows = batch.num_rows();
-            for row_idx in 0..num_rows {
-                let mut row_key = Vec::with_capacity(num_cols);
-                for col_idx in 0..num_cols {
-                    let value =
-                        ScalarValue::try_from_array(batch.column(col_idx).as_ref(), row_idx)
-                            .map(|v| v.compacted())
-                            .map_err(|e| {
-                                fuzzer_err(&format!(
-                                    "Failed to convert value at row {} to ScalarValue: {}",
-                                    row_idx, e
-                                ))
-                            })?;
-                    row_key.push(value);
-                }
-                *multiset.entry(row_key).or_insert(0) += 1;
-            }
-        }
-
-        Ok(multiset)
-    }
-
-    fn format_multiset_diff(
-        left: &HashMap<Vec<ScalarValue>, usize>,
-        right: &HashMap<Vec<ScalarValue>, usize>,
-    ) -> String {
-        let mut lines = Vec::new();
-        for (row, left_count) in left {
-            let right_count = right.get(row).copied().unwrap_or(0);
-            if *left_count != right_count {
-                lines.push(format!(
-                    "row={:?}, left_count={}, right_count={}",
-                    row, left_count, right_count
-                ));
-            }
-        }
-        for (row, right_count) in right {
-            if !left.contains_key(row) {
-                lines.push(format!(
-                    "row={:?}, left_count=0, right_count={}",
-                    row, right_count
-                ));
-            }
-        }
-
-        lines.sort();
-        let preview = lines.into_iter().take(20).collect::<Vec<_>>();
-        if preview.is_empty() {
-            "no row differences".to_string()
-        } else {
-            preview.join("\n")
-        }
-    }
-
-    fn count_total_rows(batches: &[RecordBatch]) -> usize {
-        batches.iter().map(RecordBatch::num_rows).sum()
-    }
-
-    fn validate_value_equivalence(&self, results: &[QueryExecutionResult]) -> Result<()> {
-        let q_all_batches = results[0]
-            .result
-            .as_ref()
-            .map_err(|e| fuzzer_err(&e.to_string()))?;
-        let q_union_batches = results[1]
-            .result
-            .as_ref()
-            .map_err(|e| fuzzer_err(&e.to_string()))?;
-
-        let all_multiset = Self::batches_to_row_multiset(q_all_batches)?;
-        let partition_multiset = Self::batches_to_row_multiset(q_union_batches)?;
-
-        if all_multiset != partition_multiset {
-            return Err(fuzzer_err(&format!(
-                "TLP-WHERE value equivalence violated:\n{}",
-                Self::format_multiset_diff(&all_multiset, &partition_multiset)
-            )));
-        }
-
-        Ok(())
     }
 }
 
@@ -195,7 +93,7 @@ impl Oracle for TlpWhereOracle {
             return Ok(());
         }
 
-        self.validate_value_equivalence(results)
+        oracle_common::validate_value_equivalence(results, 0, 1, "TLP-WHERE")
     }
 
     fn create_error_report(&self, results: &[QueryExecutionResult]) -> Result<String> {
@@ -216,7 +114,7 @@ impl Oracle for TlpWhereOracle {
             match &result.result {
                 Ok(batches) => report.push_str(&format!(
                     "  status: ok, rows={}\n\n",
-                    Self::count_total_rows(batches)
+                    util::count_total_rows(batches)
                 )),
                 Err(e) => report.push_str(&format!("  status: error, details={}\n\n", e)),
             }
@@ -234,16 +132,16 @@ impl Oracle for TlpWhereOracle {
 
             report.push_str(&format!(
                 "Row counts: all={}, partition_union={}\n",
-                Self::count_total_rows(q_all_batches),
-                Self::count_total_rows(q_union_batches)
+                util::count_total_rows(q_all_batches),
+                util::count_total_rows(q_union_batches)
             ));
 
-            let all_multiset = Self::batches_to_row_multiset(q_all_batches)?;
-            let partition_multiset = Self::batches_to_row_multiset(q_union_batches)?;
+            let all_multiset = util::batches_to_row_multiset(q_all_batches)?;
+            let partition_multiset = util::batches_to_row_multiset(q_union_batches)?;
 
             if all_multiset != partition_multiset {
                 report.push_str("\nTop multiset differences:\n");
-                report.push_str(&Self::format_multiset_diff(
+                report.push_str(&util::format_row_multiset_diff(
                     &all_multiset,
                     &partition_multiset,
                 ));
@@ -261,7 +159,7 @@ impl Oracle for TlpWhereOracle {
 mod tests {
     use super::*;
     use crate::common::LogicalTable;
-    use datafusion::arrow::array::{Array, Int64Array};
+    use datafusion::arrow::array::{Array, Int64Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::prelude::SessionContext;
 
