@@ -2,6 +2,8 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::instant::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
@@ -49,7 +51,7 @@ pub async fn run_fuzzer(ctx: Arc<GlobalContext>) -> Result<()> {
             let query_seed = query_base_seed.wrapping_add(i as u64);
 
             // >>> CORE LOGIC <<<
-            execute_oracle_test(query_seed, &ctx).await;
+            let _ = execute_oracle_test(round, i, query_seed, &ctx).await?;
         }
 
         update_stat_for_round_completion(&ctx.fuzzer_stats);
@@ -206,7 +208,12 @@ async fn create_and_register_view(
     Ok(())
 }
 
-async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
+async fn execute_oracle_test(
+    round: u32,
+    query_index: u32,
+    seed: u64,
+    ctx: &Arc<GlobalContext>,
+) -> Result<bool> {
     // Create a deterministic RNG instance for this test
     let mut rng = StdRng::seed_from_u64(seed);
 
@@ -229,14 +236,23 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
             if !is_error_whitelisted(&err_msg, None) {
                 error!(err_msg)
             }
-            return false;
+            return Ok(false);
         }
     };
 
     if query_group.is_empty() {
         warn!("Oracle generated empty query group");
-        return false;
+        return Ok(false);
     }
+
+    append_query_log(
+        ctx,
+        round,
+        query_index,
+        seed,
+        selected_oracle.name(),
+        &query_group,
+    )?;
 
     // === Execute queries and collect results ===
     let mut execution_results = Vec::new();
@@ -259,7 +275,7 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
     {
         Ok(_) => {
             info!("Oracle test passed");
-            true
+            Ok(true)
         }
         Err(e) => {
             error!("Oracle test failed: {}", e);
@@ -268,9 +284,61 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
             if let Ok(error_report) = selected_oracle.create_error_report(&execution_results) {
                 error!("Error Report:\n{}", error_report);
             }
-            false
+            Ok(false)
         }
     }
+}
+
+fn append_query_log(
+    ctx: &Arc<GlobalContext>,
+    round: u32,
+    query_index: u32,
+    query_seed: u64,
+    oracle_name: &str,
+    query_group: &[QueryContext],
+) -> Result<()> {
+    let Some(log_dir) = &ctx.runner_config.log_path else {
+        return Ok(());
+    };
+
+    let query_log_path = log_dir.join("queries.log");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&query_log_path)
+        .map_err(|e| {
+            crate::common::fuzzer_err(&format!(
+                "Failed to open query log '{}': {}",
+                query_log_path.display(),
+                e
+            ))
+        })?;
+
+    writeln!(
+        file,
+        "=== round={} query={} oracle={} query_seed={} ===",
+        round + 1,
+        query_index + 1,
+        oracle_name,
+        query_seed
+    )?;
+
+    for (statement_index, query_context) in query_group.iter().enumerate() {
+        match &query_context.context_description {
+            Some(description) => writeln!(
+                file,
+                "--- statement={} context={} ---",
+                statement_index + 1,
+                description
+            )?,
+            None => writeln!(file, "--- statement={} ---", statement_index + 1)?,
+        }
+
+        writeln!(file, "{}", query_context.query)?;
+        writeln!(file)?;
+    }
+
+    Ok(())
 }
 
 /// Query execution result that tracks both the outcome and whether it timed out

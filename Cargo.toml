@@ -24,6 +24,9 @@ async-trait = "0.1"
 regex = "1.0"
 signal-hook = "0.3"
 
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
