@@ -24,6 +24,8 @@ pub enum ConfiguredOracle {
     NoCrash,
     #[serde(rename = "NestedQueries", alias = "NestedQueriesOracle")]
     NestedQueries,
+    #[serde(rename = "TlpWhere", alias = "TlpWhereOracle")]
+    TlpWhere,
 }
 
 impl ConfiguredOracle {
@@ -31,6 +33,7 @@ impl ConfiguredOracle {
         match self {
             Self::NoCrash => Box::new(NoCrashOracle::new(seed, ctx)),
             Self::NestedQueries => Box::new(NestedQueriesOracle::new(seed, ctx)),
+            Self::TlpWhere => Box::new(TlpWhereOracle::new(seed, ctx)),
         }
     }
 }
