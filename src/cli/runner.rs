@@ -13,7 +13,7 @@ use crate::common::{InclusionConfig, LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
-use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult};
+use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::error_whitelist;
@@ -214,22 +214,12 @@ async fn execute_oracle_test(
     seed: u64,
     ctx: &Arc<GlobalContext>,
 ) -> Result<bool> {
-    // Create a deterministic RNG instance for this test
-    let mut rng = StdRng::seed_from_u64(seed);
+    let mut randomly_selected_oracle = select_random_configured_oracle(seed, ctx);
 
-    // === Select a random oracle ===
-    // TODO: disabled views since joining too many table is slow
-    let available_oracles: Vec<Box<dyn Oracle + Send>> = vec![
-        Box::new(NoCrashOracle::new(seed, Arc::clone(ctx))),
-        // Box::new(NestedQueriesOracle::new(seed, Arc::clone(ctx))),
-    ];
-    let oracle_index = rng.random_range(0..available_oracles.len());
-    let mut selected_oracle = available_oracles.into_iter().nth(oracle_index).unwrap();
-
-    info!("Selected oracle: {}", selected_oracle);
+    info!("Selected oracle: {}", randomly_selected_oracle);
 
     // === Generate query group ===
-    let query_group = match selected_oracle.generate_query_group() {
+    let query_group = match randomly_selected_oracle.generate_query_group() {
         Ok(group) => group,
         Err(e) => {
             let err_msg = format!("Failed to generate query group: {}", e);
@@ -250,7 +240,7 @@ async fn execute_oracle_test(
         round,
         query_index,
         seed,
-        selected_oracle.name(),
+        randomly_selected_oracle.name(),
         &query_group,
     )?;
 
@@ -269,7 +259,7 @@ async fn execute_oracle_test(
     }
 
     // === Validate execution results ===
-    match selected_oracle
+    match randomly_selected_oracle
         .validate_consistency(&execution_results)
         .await
     {
@@ -281,12 +271,29 @@ async fn execute_oracle_test(
             error!("Oracle test failed: {}", e);
 
             // Log error report if available
-            if let Ok(error_report) = selected_oracle.create_error_report(&execution_results) {
+            if let Ok(error_report) =
+                randomly_selected_oracle.create_error_report(&execution_results)
+            {
                 error!("Error Report:\n{}", error_report);
             }
             Ok(false)
         }
     }
+}
+
+fn select_random_configured_oracle(seed: u64, ctx: &Arc<GlobalContext>) -> Box<dyn Oracle + Send> {
+    // Randomly pick one oracle for this query; the configured oracle set bounds the choice.
+    let available_oracles: Vec<Box<dyn Oracle + Send>> = ctx
+        .runner_config
+        .oracles
+        .iter()
+        .copied()
+        .map(|oracle| oracle.build(seed, Arc::clone(ctx)))
+        .collect();
+
+    let mut rng = StdRng::seed_from_u64(seed);
+    let oracle_index = rng.random_range(0..available_oracles.len());
+    available_oracles.into_iter().nth(oracle_index).unwrap()
 }
 
 fn append_query_log(
@@ -475,6 +482,7 @@ mod tests {
             max_expr_level: 2,
             max_table_count: 3,
             max_insert_per_table: 20,
+            oracles: vec![crate::oracle::ConfiguredOracle::NoCrash],
         };
 
         // Collect results from multiple runs
@@ -593,6 +601,7 @@ mod tests {
             max_expr_level: 2,
             max_table_count: 3,
             max_insert_per_table: 20,
+            oracles: vec![crate::oracle::ConfiguredOracle::NoCrash],
         };
 
         let mut results_by_seed = Vec::new();
@@ -691,8 +700,7 @@ mod tests {
             for i in 0..ctx.runner_config.queries_per_round {
                 let query_seed = query_base_seed.wrapping_add(i as u64);
 
-                // Generate a query using the same logic as execute_oracle_test
-                let mut oracle = NoCrashOracle::new(query_seed, Arc::clone(&ctx));
+                let mut oracle = select_random_configured_oracle(query_seed, &ctx);
                 if let Ok(query_group) = oracle.generate_query_group() {
                     if let Some(query_context) = query_group.first() {
                         captured_queries
