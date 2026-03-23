@@ -1,3 +1,5 @@
+use datafusion_fuzzer::fuzz_context::RunnerConfig;
+use datafusion_fuzzer::oracle::ConfiguredOracle;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,15 +9,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Runs the fuzzer end-to-end with a fixed seed.
 ///
 /// After fuzzer feature changes, update the snapshot and review the SQL manually to
-/// make sure it still looks reasonable. This also ensures the fuzzer runs are 
+/// make sure it still looks reasonable. This also ensures the fuzzer runs are
 /// deterministic.
 ///
 /// To update the snapshot after changes, run:
 /// `cargo insta test --accept --test integration_test`
 #[test]
-fn full_run_logs_expected_queries_and_stats() -> Result<(), Box<dyn Error>> {
+fn full_run_logs_expected_queries_and_stats_for_no_crash_oracle() -> Result<(), Box<dyn Error>> {
     let log_dir = make_temp_log_dir("integration")?;
-    let run_output = run_fuzzer_once(&log_dir)?;
+    let config_path = generate_default_config_with_oracles(&log_dir, &[ConfiguredOracle::NoCrash])?;
+    let run_output = run_fuzzer_once(&config_path)?;
 
     insta::assert_snapshot!(run_output.query_log, @r#"
     === round=1 query=1 oracle=NoCrashOracle query_seed=310304 ===
@@ -100,19 +103,16 @@ struct RunOutput {
     stats_summary: String,
 }
 
-fn run_fuzzer_once(log_dir: &Path) -> Result<RunOutput, Box<dyn Error>> {
+fn run_fuzzer_once(config_path: &Path) -> Result<RunOutput, Box<dyn Error>> {
+    let config = RunnerConfig::from_file(config_path)?;
+    let log_dir = config
+        .log_path
+        .ok_or("expected test config to include a log_path")?;
+
     let output = Command::new(env!("CARGO_BIN_EXE_datafusion-fuzzer"))
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .args([
-            "--config",
-            "datafusion-fuzzer.toml",
-            "--rounds",
-            "2",
-            "--queries-per-round",
-            "5",
-            "--log-path",
-        ])
-        .arg(log_dir)
+        .args(["--config"])
+        .arg(config_path)
         .output()?;
 
     if !output.status.success() {
@@ -142,6 +142,27 @@ fn run_fuzzer_once(log_dir: &Path) -> Result<RunOutput, Box<dyn Error>> {
         query_log: fs::read_to_string(query_log_path)?,
         stats_summary: extract_stats_summary(&stdout)?,
     })
+}
+
+fn generate_default_config_with_oracles(
+    log_dir: &Path,
+    oracles: &[ConfiguredOracle],
+) -> Result<PathBuf, Box<dyn Error>> {
+    let config_path = log_dir.join("integration.toml");
+    let config = RunnerConfig {
+        rounds: 2,
+        queries_per_round: 5,
+        log_path: Some(log_dir.to_path_buf()),
+        enable_tui: false,
+        oracles: oracles.to_vec(),
+        ..RunnerConfig::default()
+    };
+
+    // Generate an integration-test config from the default config shape while
+    // letting each test pin its oracle set and deterministic runtime knobs.
+    fs::write(&config_path, toml::to_string(&config)?)?;
+
+    Ok(config_path)
 }
 
 fn extract_stats_summary(stdout: &str) -> Result<String, Box<dyn Error>> {
