@@ -176,7 +176,11 @@ oracles = ["NoCrash", "NestedQueries", "TlpWhere"]
 
         assert_eq!(
             config.oracles,
-            vec![ConfiguredOracle::NoCrash, ConfiguredOracle::NestedQueries]
+            vec![
+                ConfiguredOracle::NoCrash,
+                ConfiguredOracle::NestedQueries,
+                ConfiguredOracle::TlpWhere
+            ]
         );
     }
 
