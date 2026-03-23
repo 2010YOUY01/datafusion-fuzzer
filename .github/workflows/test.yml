@@ -1,0 +1,27 @@
+name: Test Suite
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit tests
+        run: cargo test --lib
+
+      - name: Run integration snapshot test
+        run: cargo test --test integration_test

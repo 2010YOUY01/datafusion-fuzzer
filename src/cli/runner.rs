@@ -2,6 +2,8 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::instant::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
@@ -11,7 +13,7 @@ use crate::common::{InclusionConfig, LogicalTable, Result};
 use crate::datasource_generator::dataset_generator::DatasetGenerator;
 use crate::fuzz_context::{GlobalContext, ctx_observability::display_all_tables};
 use crate::fuzz_runner::{record_query_with_time, update_stat_for_round_completion};
-use crate::oracle::{NoCrashOracle, Oracle, QueryContext, QueryExecutionResult, TlpWhereOracle};
+use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 
 use super::error_whitelist;
@@ -49,7 +51,7 @@ pub async fn run_fuzzer(ctx: Arc<GlobalContext>) -> Result<()> {
             let query_seed = query_base_seed.wrapping_add(i as u64);
 
             // >>> CORE LOGIC <<<
-            execute_oracle_test(query_seed, &ctx).await;
+            let _ = execute_oracle_test(round, i, query_seed, &ctx).await?;
         }
 
         update_stat_for_round_completion(&ctx.fuzzer_stats);
@@ -206,38 +208,41 @@ async fn create_and_register_view(
     Ok(())
 }
 
-async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
-    // Create a deterministic RNG instance for this test
-    let mut rng = StdRng::seed_from_u64(seed);
+async fn execute_oracle_test(
+    round: u32,
+    query_index: u32,
+    seed: u64,
+    ctx: &Arc<GlobalContext>,
+) -> Result<bool> {
+    let mut randomly_selected_oracle = select_random_configured_oracle(seed, ctx);
 
-    // === Select a random oracle ===
-    // TODO: disabled views since joining too many table is slow
-    let available_oracles: Vec<Box<dyn Oracle + Send>> = vec![
-        Box::new(NoCrashOracle::new(seed, Arc::clone(ctx))),
-        Box::new(TlpWhereOracle::new(seed, Arc::clone(ctx))),
-        // Box::new(NestedQueriesOracle::new(seed, Arc::clone(ctx))),
-    ];
-    let oracle_index = rng.random_range(0..available_oracles.len());
-    let mut selected_oracle = available_oracles.into_iter().nth(oracle_index).unwrap();
-
-    info!("Selected oracle: {}", selected_oracle);
+    info!("Selected oracle: {}", randomly_selected_oracle);
 
     // === Generate query group ===
-    let query_group = match selected_oracle.generate_query_group() {
+    let query_group = match randomly_selected_oracle.generate_query_group() {
         Ok(group) => group,
         Err(e) => {
             let err_msg = format!("Failed to generate query group: {}", e);
             if !is_error_whitelisted(&err_msg, None) {
                 error!(err_msg)
             }
-            return false;
+            return Ok(false);
         }
     };
 
     if query_group.is_empty() {
         warn!("Oracle generated empty query group");
-        return false;
+        return Ok(false);
     }
+
+    append_query_log(
+        ctx,
+        round,
+        query_index,
+        seed,
+        randomly_selected_oracle.name(),
+        &query_group,
+    )?;
 
     // === Execute queries and collect results ===
     let mut execution_results = Vec::new();
@@ -254,24 +259,93 @@ async fn execute_oracle_test(seed: u64, ctx: &Arc<GlobalContext>) -> bool {
     }
 
     // === Validate execution results ===
-    match selected_oracle
+    match randomly_selected_oracle
         .validate_consistency(&execution_results)
         .await
     {
         Ok(_) => {
             info!("Oracle test passed");
-            true
+            Ok(true)
         }
         Err(e) => {
             error!("Oracle test failed: {}", e);
 
             // Log error report if available
-            if let Ok(error_report) = selected_oracle.create_error_report(&execution_results) {
+            if let Ok(error_report) =
+                randomly_selected_oracle.create_error_report(&execution_results)
+            {
                 error!("Error Report:\n{}", error_report);
             }
-            false
+            Ok(false)
         }
     }
+}
+
+fn select_random_configured_oracle(seed: u64, ctx: &Arc<GlobalContext>) -> Box<dyn Oracle + Send> {
+    // Randomly pick one oracle for this query; the configured oracle set bounds the choice.
+    let available_oracles: Vec<Box<dyn Oracle + Send>> = ctx
+        .runner_config
+        .oracles
+        .iter()
+        .copied()
+        .map(|oracle| oracle.build(seed, Arc::clone(ctx)))
+        .collect();
+
+    let mut rng = StdRng::seed_from_u64(seed);
+    let oracle_index = rng.random_range(0..available_oracles.len());
+    available_oracles.into_iter().nth(oracle_index).unwrap()
+}
+
+fn append_query_log(
+    ctx: &Arc<GlobalContext>,
+    round: u32,
+    query_index: u32,
+    query_seed: u64,
+    oracle_name: &str,
+    query_group: &[QueryContext],
+) -> Result<()> {
+    let Some(log_dir) = &ctx.runner_config.log_path else {
+        return Ok(());
+    };
+
+    let query_log_path = log_dir.join("queries.log");
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&query_log_path)
+        .map_err(|e| {
+            crate::common::fuzzer_err(&format!(
+                "Failed to open query log '{}': {}",
+                query_log_path.display(),
+                e
+            ))
+        })?;
+
+    writeln!(
+        file,
+        "=== round={} query={} oracle={} query_seed={} ===",
+        round + 1,
+        query_index + 1,
+        oracle_name,
+        query_seed
+    )?;
+
+    for (statement_index, query_context) in query_group.iter().enumerate() {
+        match &query_context.context_description {
+            Some(description) => writeln!(
+                file,
+                "--- statement={} context={} ---",
+                statement_index + 1,
+                description
+            )?,
+            None => writeln!(file, "--- statement={} ---", statement_index + 1)?,
+        }
+
+        writeln!(file, "{}", query_context.query)?;
+        writeln!(file)?;
+    }
+
+    Ok(())
 }
 
 /// Query execution result that tracks both the outcome and whether it timed out
@@ -408,6 +482,7 @@ mod tests {
             max_expr_level: 2,
             max_table_count: 3,
             max_insert_per_table: 20,
+            oracles: vec![crate::oracle::ConfiguredOracle::NoCrash],
         };
 
         // Collect results from multiple runs
@@ -526,6 +601,7 @@ mod tests {
             max_expr_level: 2,
             max_table_count: 3,
             max_insert_per_table: 20,
+            oracles: vec![crate::oracle::ConfiguredOracle::NoCrash],
         };
 
         let mut results_by_seed = Vec::new();
@@ -624,8 +700,7 @@ mod tests {
             for i in 0..ctx.runner_config.queries_per_round {
                 let query_seed = query_base_seed.wrapping_add(i as u64);
 
-                // Generate a query using the same logic as execute_oracle_test
-                let mut oracle = NoCrashOracle::new(query_seed, Arc::clone(&ctx));
+                let mut oracle = select_random_configured_oracle(query_seed, &ctx);
                 if let Ok(query_group) = oracle.generate_query_group() {
                     if let Some(query_context) = query_group.first() {
                         captured_queries
