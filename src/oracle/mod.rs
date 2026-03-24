@@ -1,7 +1,9 @@
 // Oracle module - provides testing oracles for query consistency and correctness
 
+pub(crate) mod oracle_common;
 pub mod oracle_impl_nested_queries;
 pub mod oracle_impl_no_crash;
+pub mod oracle_impl_tlp_where;
 pub mod oracle_trait;
 
 use std::sync::Arc;
@@ -13,6 +15,7 @@ use crate::fuzz_context::GlobalContext;
 // Re-export main types and traits
 pub use oracle_impl_nested_queries::NestedQueriesOracle;
 pub use oracle_impl_no_crash::NoCrashOracle;
+pub use oracle_impl_tlp_where::TlpWhereOracle;
 pub use oracle_trait::{Oracle, QueryContext, QueryExecutionResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,6 +24,8 @@ pub enum ConfiguredOracle {
     NoCrash,
     #[serde(rename = "NestedQueries", alias = "NestedQueriesOracle")]
     NestedQueries,
+    #[serde(rename = "TlpWhere", alias = "TlpWhereOracle")]
+    TlpWhere,
 }
 
 impl ConfiguredOracle {
@@ -28,6 +33,7 @@ impl ConfiguredOracle {
         match self {
             Self::NoCrash => Box::new(NoCrashOracle::new(seed, ctx)),
             Self::NestedQueries => Box::new(NestedQueriesOracle::new(seed, ctx)),
+            Self::TlpWhere => Box::new(TlpWhereOracle::new(seed, ctx)),
         }
     }
 }

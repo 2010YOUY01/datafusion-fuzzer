@@ -169,14 +169,18 @@ max_row_count = 100
 max_expr_level = 3
 max_table_count = 3
 max_insert_per_table = 20
-oracles = ["NoCrash", "NestedQueries"]
+oracles = ["NoCrash", "NestedQueries", "TlpWhere"]
 "#,
         )
         .unwrap();
 
         assert_eq!(
             config.oracles,
-            vec![ConfiguredOracle::NoCrash, ConfiguredOracle::NestedQueries]
+            vec![
+                ConfiguredOracle::NoCrash,
+                ConfiguredOracle::NestedQueries,
+                ConfiguredOracle::TlpWhere
+            ]
         );
     }
 

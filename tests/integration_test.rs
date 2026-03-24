@@ -98,6 +98,191 @@ fn full_run_logs_expected_queries_and_stats_for_no_crash_oracle() -> Result<(), 
     Ok(())
 }
 
+#[test]
+fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn Error>> {
+    let log_dir = make_temp_log_dir("integration-tlp-where")?;
+    let config_path =
+        generate_default_config_with_oracles(&log_dir, &[ConfiguredOracle::TlpWhere])?;
+    let run_output = run_fuzzer_once(&config_path)?;
+
+    insta::assert_snapshot!(run_output.query_log, @r#"
+    === round=1 query=1 oracle=TlpWhereOracle query_seed=310304 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t0
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t0
+    WHERE (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91))))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE NOT (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91))))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91)))) IS NULL
+
+    === round=1 query=2 oracle=TlpWhereOracle query_seed=310305 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t1
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t1
+    WHERE (false)
+    UNION ALL
+    SELECT *
+    FROM t1
+    WHERE NOT (false)
+    UNION ALL
+    SELECT *
+    FROM t1
+    WHERE (false) IS NULL
+
+    === round=1 query=3 oracle=TlpWhereOracle query_seed=310306 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t2
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t2
+    WHERE (NULL)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE NOT (NULL)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE (NULL) IS NULL
+
+    === round=1 query=5 oracle=TlpWhereOracle query_seed=310308 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t0
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t0
+    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE NOT ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))) IS NULL
+
+    === round=2 query=1 oracle=TlpWhereOracle query_seed=311304 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t0
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t0
+    WHERE (false)
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE NOT (false)
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE (false) IS NULL
+
+    === round=2 query=2 oracle=TlpWhereOracle query_seed=311305 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t0
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t0
+    WHERE (true)
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE NOT (true)
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE (true) IS NULL
+
+    === round=2 query=3 oracle=TlpWhereOracle query_seed=311306 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t2
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t2
+    WHERE (false)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE NOT (false)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE (false) IS NULL
+
+    === round=2 query=4 oracle=TlpWhereOracle query_seed=311307 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t1
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t1
+    WHERE ((96 >= ((-7.129738 - 23.446228) % (47.11673 / 88.10098))))
+    UNION ALL
+    SELECT *
+    FROM t1
+    WHERE NOT ((96 >= ((-7.129738 - 23.446228) % (47.11673 / 88.10098))))
+    UNION ALL
+    SELECT *
+    FROM t1
+    WHERE ((96 >= ((-7.129738 - 23.446228) % (47.11673 / 88.10098)))) IS NULL
+
+    === round=2 query=5 oracle=TlpWhereOracle query_seed=311308 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t2
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t2
+    WHERE (true)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE NOT (true)
+    UNION ALL
+    SELECT *
+    FROM t2
+    WHERE (true) IS NULL
+    "#);
+    insta::assert_snapshot!(run_output.stats_summary, @r#"
+    ============================================================
+    🎯 DataFusion Fuzzer - Final Statistics
+    ============================================================
+    📊 Execution Summary:
+      • Rounds Completed: 2
+      • Queries Executed: 18
+      • Query Success Rate: 88.89%
+    "#);
+
+    fs::remove_dir_all(&log_dir)?;
+
+    Ok(())
+}
+
 struct RunOutput {
     query_log: String,
     stats_summary: String,
