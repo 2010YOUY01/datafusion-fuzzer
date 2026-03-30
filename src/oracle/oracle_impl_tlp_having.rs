@@ -1,4 +1,6 @@
+use crate::common::util;
 use crate::common::{InclusionConfig, Result, fuzzer_err};
+use crate::oracle::oracle_common;
 use crate::oracle::{Oracle, QueryContext, QueryExecutionResult};
 use crate::query_generator::stmt_select_def::SelectStatementBuilder;
 use std::sync::Arc;
@@ -92,7 +94,7 @@ impl Oracle for TlpHavingOracle {
             return Ok(());
         }
 
-        crate::oracle::tlp_shared::validate_value_equivalence(results, "TLP-HAVING")
+        oracle_common::validate_value_equivalence(results, 0, 1, "TLP-HAVING")
     }
 
     fn create_error_report(&self, results: &[QueryExecutionResult]) -> Result<String> {
@@ -113,13 +115,42 @@ impl Oracle for TlpHavingOracle {
             match &result.result {
                 Ok(batches) => report.push_str(&format!(
                     "  status: ok, rows={}\n\n",
-                    crate::oracle::tlp_shared::count_total_rows(batches)
+                    util::count_total_rows(batches)
                 )),
                 Err(e) => report.push_str(&format!("  status: error, details={}\n\n", e)),
             }
         }
 
-        crate::oracle::tlp_shared::append_value_equivalence_report(&mut report, results)?;
+        if results.len() == 2 && results.iter().all(|r| r.result.is_ok()) {
+            let q_all_batches = results[0]
+                .result
+                .as_ref()
+                .map_err(|e| fuzzer_err(&e.to_string()))?;
+            let q_union_batches = results[1]
+                .result
+                .as_ref()
+                .map_err(|e| fuzzer_err(&e.to_string()))?;
+
+            report.push_str(&format!(
+                "Row counts: all={}, partition_union={}\n",
+                util::count_total_rows(q_all_batches),
+                util::count_total_rows(q_union_batches)
+            ));
+
+            let all_multiset = util::batches_to_row_multiset(q_all_batches)?;
+            let partition_multiset = util::batches_to_row_multiset(q_union_batches)?;
+
+            if all_multiset != partition_multiset {
+                report.push_str("\nTop multiset differences:\n");
+                report.push_str(&util::format_row_multiset_diff(
+                    &all_multiset,
+                    &partition_multiset,
+                ));
+                report.push('\n');
+            } else {
+                report.push_str("Multiset equivalence: true\n");
+            }
+        }
 
         Ok(report)
     }
