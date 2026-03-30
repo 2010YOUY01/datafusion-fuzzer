@@ -248,7 +248,7 @@ impl SelectStatementBuilder {
             &self.from_tables,
             &self.ctx,
         ));
-        let mut expr_gen = expr_gen.with_src_columns(Arc::clone(&src_columns));
+        let mut expr_gen = expr_gen.with_src_columns(src_columns.clone());
 
         // Build SELECT clause: generate expression list
         let select_exprs = self.generate_select_exprs(&mut expr_gen)?;
@@ -432,25 +432,21 @@ impl SelectStatementBuilder {
             return Ok(Vec::new());
         }
 
-        let max_group_by_exprs = std::cmp::min(
-            src_columns.len(),
-            self.ctx.runner_config.max_expr_level as usize,
-        );
+        let max_group_by_exprs = src_columns
+            .len()
+            .min(self.ctx.runner_config.max_expr_level as usize);
         if max_group_by_exprs == 0 {
             return Ok(Vec::new());
         }
-        let num_group_by_exprs = self.rng.random_range(1..=max_group_by_exprs);
 
+        let num_group_by_exprs = self.rng.random_range(1..=max_group_by_exprs);
         let mut column_pool = src_columns.as_ref().clone();
-        let mut group_by_exprs = Vec::with_capacity(num_group_by_exprs);
-        for _ in 0..num_group_by_exprs {
-            if column_pool.is_empty() {
-                break;
-            }
-            let idx = self.rng.random_range(0..column_pool.len());
-            let col = column_pool.remove(idx);
-            group_by_exprs.push(Expr::Column(col));
-        }
+        column_pool.shuffle(&mut self.rng);
+        let group_by_exprs = column_pool
+            .into_iter()
+            .take(num_group_by_exprs)
+            .map(Expr::Column)
+            .collect();
 
         Ok(group_by_exprs)
     }
