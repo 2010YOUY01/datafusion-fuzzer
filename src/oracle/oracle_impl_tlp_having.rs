@@ -8,6 +8,29 @@ use std::sync::Arc;
 ///
 /// It validates value-level multiset equivalence:
 /// q_all_groups == q_having_p UNION ALL q_having_not_p UNION ALL q_having_p_is_null
+///
+/// ### Example:
+///
+/// SELECT a
+/// FROM t
+/// GROUP BY a;
+///
+/// should return the same multiset as
+///
+/// SELECT a
+/// FROM t
+/// GROUP BY a
+/// HAVING a > 10
+/// UNION ALL
+/// SELECT a
+/// FROM t
+/// GROUP BY a
+/// HAVING NOT (a > 10)
+/// UNION ALL
+/// SELECT a
+/// FROM t
+/// GROUP BY a
+/// HAVING (a > 10) IS NULL;
 pub struct TlpHavingOracle {
     seed: u64,
     ctx: Arc<crate::fuzz_context::GlobalContext>,
