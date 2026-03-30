@@ -283,6 +283,247 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     Ok(())
 }
 
+#[test]
+fn full_run_logs_expected_queries_for_tlp_having_oracle() -> Result<(), Box<dyn Error>> {
+    let log_dir = make_temp_log_dir("integration-tlp-having")?;
+    let config_path =
+        generate_default_config_with_oracles(&log_dir, &[ConfiguredOracle::TlpHaving])?;
+    let run_output = run_fuzzer_once(&config_path)?;
+
+    insta::assert_snapshot!(run_output.query_log, @r#"
+    === round=1 query=1 oracle=TlpHavingOracle query_seed=310304 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    FROM t0
+    GROUP BY t0.col_t0_3_date32, t0.col_t0_1_decimal128
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    FROM t0
+    GROUP BY t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    HAVING ((INTERVAL '-7 MONS 16 DAYS -0.000000001 SECS' = 1193.6000000000000000000000000000000))
+    UNION ALL
+    SELECT t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    FROM t0
+    GROUP BY t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    HAVING NOT ((INTERVAL '-7 MONS 16 DAYS -0.000000001 SECS' = 1193.6000000000000000000000000000000))
+    UNION ALL
+    SELECT t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    FROM t0
+    GROUP BY t0.col_t0_3_date32, t0.col_t0_1_decimal128
+    HAVING ((INTERVAL '-7 MONS 16 DAYS -0.000000001 SECS' = 1193.6000000000000000000000000000000)) IS NULL
+
+    === round=1 query=2 oracle=TlpHavingOracle query_seed=310305 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    FROM t1
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    FROM t1
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    HAVING (NULL)
+    UNION ALL
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    FROM t1
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    HAVING NOT (NULL)
+    UNION ALL
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    FROM t1
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int64
+    HAVING (NULL) IS NULL
+
+    === round=1 query=3 oracle=TlpHavingOracle query_seed=310306 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t2.col_t2_1_string
+    FROM t2
+    WHERE NULL
+    GROUP BY t2.col_t2_1_string
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t2.col_t2_1_string
+    FROM t2
+    WHERE NULL
+    GROUP BY t2.col_t2_1_string
+    HAVING (false)
+    UNION ALL
+    SELECT t2.col_t2_1_string
+    FROM t2
+    WHERE NULL
+    GROUP BY t2.col_t2_1_string
+    HAVING NOT (false)
+    UNION ALL
+    SELECT t2.col_t2_1_string
+    FROM t2
+    WHERE NULL
+    GROUP BY t2.col_t2_1_string
+    HAVING (false) IS NULL
+
+    === round=1 query=5 oracle=TlpHavingOracle query_seed=310308 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    FROM t0
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    FROM t0
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    HAVING (false)
+    UNION ALL
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    FROM t0
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    HAVING NOT (false)
+    UNION ALL
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    FROM t0
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128, t0.col_t0_3_date32
+    HAVING (false) IS NULL
+
+    === round=2 query=1 oracle=TlpHavingOracle query_seed=311304 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    FROM t0
+    WHERE false
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    FROM t0
+    WHERE false
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    HAVING (false)
+    UNION ALL
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    FROM t0
+    WHERE false
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    HAVING NOT (false)
+    UNION ALL
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    FROM t0
+    WHERE false
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_1_float64, t0.col_t0_2_time64_nanosecond
+    HAVING (false) IS NULL
+
+    === round=2 query=2 oracle=TlpHavingOracle query_seed=311305 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    HAVING (t0.col_t0_3_boolean)
+    UNION ALL
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    HAVING NOT (t0.col_t0_3_boolean)
+    UNION ALL
+    SELECT t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_4_interval_month_day_nano, t0.col_t0_3_boolean
+    HAVING (t0.col_t0_3_boolean) IS NULL
+
+    === round=2 query=3 oracle=TlpHavingOracle query_seed=311306 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    WHERE false
+    GROUP BY t2.col_t2_1_float32
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    WHERE false
+    GROUP BY t2.col_t2_1_float32
+    HAVING (false)
+    UNION ALL
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    WHERE false
+    GROUP BY t2.col_t2_1_float32
+    HAVING NOT (false)
+    UNION ALL
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    WHERE false
+    GROUP BY t2.col_t2_1_float32
+    HAVING (false) IS NULL
+
+    === round=2 query=4 oracle=TlpHavingOracle query_seed=311307 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t1.col_t1_3_decimal128
+    FROM t1
+    GROUP BY t1.col_t1_3_decimal128
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t1.col_t1_3_decimal128
+    FROM t1
+    GROUP BY t1.col_t1_3_decimal128
+    HAVING (true)
+    UNION ALL
+    SELECT t1.col_t1_3_decimal128
+    FROM t1
+    GROUP BY t1.col_t1_3_decimal128
+    HAVING NOT (true)
+    UNION ALL
+    SELECT t1.col_t1_3_decimal128
+    FROM t1
+    GROUP BY t1.col_t1_3_decimal128
+    HAVING (true) IS NULL
+
+    === round=2 query=5 oracle=TlpHavingOracle query_seed=311308 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    GROUP BY t2.col_t2_1_float32
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    GROUP BY t2.col_t2_1_float32
+    HAVING (('ro' ~ to_char((INTERVAL '4 MONS -11 DAYS -0.961066195 SECS' + INTERVAL '10 MONS -17 DAYS -0.349920790 SECS'), to_char(NULL, '0,YK#Mw'))))
+    UNION ALL
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    GROUP BY t2.col_t2_1_float32
+    HAVING NOT (('ro' ~ to_char((INTERVAL '4 MONS -11 DAYS -0.961066195 SECS' + INTERVAL '10 MONS -17 DAYS -0.349920790 SECS'), to_char(NULL, '0,YK#Mw'))))
+    UNION ALL
+    SELECT t2.col_t2_1_float32
+    FROM t2
+    GROUP BY t2.col_t2_1_float32
+    HAVING (('ro' ~ to_char((INTERVAL '4 MONS -11 DAYS -0.961066195 SECS' + INTERVAL '10 MONS -17 DAYS -0.349920790 SECS'), to_char(NULL, '0,YK#Mw')))) IS NULL
+    "#);
+    insta::assert_snapshot!(run_output.stats_summary, @r#"
+    ============================================================
+    🎯 DataFusion Fuzzer - Final Statistics
+    ============================================================
+    📊 Execution Summary:
+      • Rounds Completed: 2
+      • Queries Executed: 18
+      • Query Success Rate: 77.78%
+    "#);
+
+    fs::remove_dir_all(&log_dir)?;
+
+    Ok(())
+}
+
 struct RunOutput {
     query_log: String,
     stats_summary: String,

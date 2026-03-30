@@ -31,7 +31,7 @@ max_expr_level = 3
 max_table_count = 3
 max_insert_per_table = 20
 
-# Supported oracles: NoCrash, NestedQueries, TlpWhere.
+# Supported oracles: NoCrash, NestedQueries, TlpWhere, TlpHaving.
 # Randomly select one oracle from the configured set for each query.
 oracles = ["NoCrash"]
-# oracles = ["NoCrash", "NestedQueries", "TlpWhere"]
+# oracles = ["NoCrash", "NestedQueries", "TlpWhere", "TlpHaving"]

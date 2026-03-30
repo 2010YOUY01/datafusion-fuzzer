@@ -158,7 +158,7 @@ impl Oracle for TlpWhereOracle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::LogicalTable;
+    use crate::common::{LogicalTable, init_available_data_types};
     use datafusion::arrow::array::{Array, Int64Array, RecordBatch};
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
     use datafusion::prelude::SessionContext;
@@ -269,6 +269,7 @@ mod tests {
 
     #[test]
     fn tlp_where_generates_expected_query_group_shape() {
+        init_available_data_types();
         let ctx = Arc::new(crate::fuzz_context::GlobalContext::default());
         ctx.runtime_context
             .registered_tables
