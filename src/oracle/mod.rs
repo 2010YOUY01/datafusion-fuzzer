@@ -6,6 +6,8 @@ pub mod oracle_impl_no_crash;
 pub mod oracle_impl_tlp_having;
 pub mod oracle_impl_tlp_where;
 pub mod oracle_trait;
+#[cfg(test)]
+pub(crate) mod test_helpers;
 
 use std::sync::Arc;
 

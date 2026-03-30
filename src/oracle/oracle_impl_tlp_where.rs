@@ -100,42 +100,15 @@ impl Oracle for TlpWhereOracle {
 mod tests {
     use super::*;
     use crate::common::{LogicalTable, init_available_data_types};
-    use datafusion::arrow::array::{Array, Int64Array, RecordBatch};
-    use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::prelude::SessionContext;
-
-    fn make_query_context(label: &str) -> Arc<QueryContext> {
-        Arc::new(QueryContext::new(
-            format!("SELECT {}", label),
-            Arc::new(SessionContext::new()),
-        ))
-    }
-
-    fn make_success_result(label: &str, values: Vec<i64>) -> QueryExecutionResult {
-        let schema = Arc::new(Schema::new(vec![Field::new("cnt", DataType::Int64, false)]));
-        let array = Arc::new(Int64Array::from(values)) as Arc<dyn Array>;
-        let batch = RecordBatch::try_new(schema, vec![array]).unwrap();
-
-        QueryExecutionResult {
-            query_context: make_query_context(label),
-            result: Ok(vec![batch]),
-        }
-    }
-
-    fn make_error_result(label: &str) -> QueryExecutionResult {
-        QueryExecutionResult {
-            query_context: make_query_context(label),
-            result: Err(fuzzer_err("expected execution error in test")),
-        }
-    }
+    use crate::oracle::test_helpers;
 
     #[tokio::test]
     async fn tlp_where_validate_passes_for_matching_values() {
         let oracle =
             TlpWhereOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
         let results = vec![
-            make_success_result("all", vec![1, 2, 3]),
-            make_success_result("partition_union", vec![1, 2, 3]),
+            test_helpers::make_success_result("all", "cnt", vec![1, 2, 3]),
+            test_helpers::make_success_result("partition_union", "cnt", vec![1, 2, 3]),
         ];
 
         assert!(oracle.validate_consistency(&results).await.is_ok());
@@ -146,8 +119,8 @@ mod tests {
         let oracle =
             TlpWhereOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
         let results = vec![
-            make_success_result("all", vec![1, 2]),
-            make_success_result("partition_union", vec![1, 2, 2]),
+            test_helpers::make_success_result("all", "cnt", vec![1, 2]),
+            test_helpers::make_success_result("partition_union", "cnt", vec![1, 2, 2]),
         ];
 
         let err = oracle.validate_consistency(&results).await.unwrap_err();
@@ -162,8 +135,8 @@ mod tests {
         let oracle =
             TlpWhereOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
         let results = vec![
-            make_success_result("all", vec![1, 2]),
-            make_error_result("partition_union"),
+            test_helpers::make_success_result("all", "cnt", vec![1, 2]),
+            test_helpers::make_error_result("partition_union"),
         ];
 
         assert!(oracle.validate_consistency(&results).await.is_ok());
@@ -171,35 +144,18 @@ mod tests {
 
     #[tokio::test]
     async fn tlp_where_validate_fails_for_schema_mismatch() {
-        let one_col_schema = Arc::new(Schema::new(vec![Field::new("c1", DataType::Int64, false)]));
-        let one_col_batch = RecordBatch::try_new(
-            one_col_schema,
-            vec![Arc::new(Int64Array::from(vec![1, 2])) as Arc<dyn Array>],
-        )
-        .unwrap();
-
-        let two_col_schema = Arc::new(Schema::new(vec![
-            Field::new("c1", DataType::Int64, false),
-            Field::new("c2", DataType::Int64, false),
-        ]));
-        let two_col_batch = RecordBatch::try_new(
-            two_col_schema,
-            vec![
-                Arc::new(Int64Array::from(vec![1])) as Arc<dyn Array>,
-                Arc::new(Int64Array::from(vec![9])) as Arc<dyn Array>,
-            ],
-        )
-        .unwrap();
+        let one_col_batch = test_helpers::make_one_col_batch(vec![1, 2]);
+        let two_col_batch = test_helpers::make_two_col_batch(vec![1], vec![9]);
 
         let oracle =
             TlpWhereOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
         let results = vec![
             QueryExecutionResult {
-                query_context: make_query_context("all"),
+                query_context: test_helpers::make_query_context("all"),
                 result: Ok(vec![one_col_batch.clone()]),
             },
             QueryExecutionResult {
-                query_context: make_query_context("partition_union"),
+                query_context: test_helpers::make_query_context("partition_union"),
                 result: Ok(vec![two_col_batch]),
             },
         ];
