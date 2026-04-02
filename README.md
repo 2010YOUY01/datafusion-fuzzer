@@ -70,6 +70,7 @@ sample_interval_secs = 5
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_group_by_count = 3
 max_table_count = 3
 max_insert_per_table = 20
 ```
@@ -96,6 +97,7 @@ Options:
 - `max_column_count`: Maximum number of columns per generated table (default: 5)
 - `max_row_count`: Maximum number of rows per generated table (default: 100)
 - `max_expr_level`: Maximum expression nesting level (default: 3)
+- `max_group_by_count`: Maximum number of `GROUP BY` expressions (default: 3)
 
 ## Progress Tracker
 ### SQL Features

@@ -434,7 +434,7 @@ impl SelectStatementBuilder {
 
         let max_group_by_exprs = src_columns
             .len()
-            .min(self.ctx.runner_config.max_expr_level as usize);
+            .min(self.ctx.runner_config.max_group_by_count as usize);
         if max_group_by_exprs == 0 {
             return Ok(Vec::new());
         }

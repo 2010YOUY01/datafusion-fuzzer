@@ -30,6 +30,8 @@ pub struct RunnerConfig {
     pub max_column_count: u64,
     pub max_row_count: u64,
     pub max_expr_level: u32,
+    #[serde(default = "RunnerConfig::default_max_group_by_count")]
+    pub max_group_by_count: u32,
     pub max_table_count: u32,
     pub max_insert_per_table: u32,
     #[serde(default = "RunnerConfig::default_oracles", alias = "oracle")]
@@ -100,6 +102,10 @@ impl RunnerConfig {
     fn default_oracles() -> Vec<ConfiguredOracle> {
         vec![ConfiguredOracle::NoCrash]
     }
+
+    fn default_max_group_by_count() -> u32 {
+        3
+    }
 }
 
 impl Default for RunnerConfig {
@@ -116,6 +122,7 @@ impl Default for RunnerConfig {
             max_column_count: 5,
             max_row_count: 100,
             max_expr_level: 3,
+            max_group_by_count: Self::default_max_group_by_count(),
             max_table_count: 3,
             max_insert_per_table: 20,
             oracles: Self::default_oracles(),
@@ -142,6 +149,7 @@ sample_interval_secs = 5
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_group_by_count = 3
 max_table_count = 3
 max_insert_per_table = 20
 oracles = ["NoCrash"]
@@ -167,6 +175,7 @@ sample_interval_secs = 5
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_group_by_count = 3
 max_table_count = 3
 max_insert_per_table = 20
 oracles = ["NoCrash", "NestedQueries", "TlpWhere", "TlpHaving"]
@@ -200,6 +209,7 @@ sample_interval_secs = 5
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_group_by_count = 3
 max_table_count = 3
 max_insert_per_table = 20
 oracles = []
