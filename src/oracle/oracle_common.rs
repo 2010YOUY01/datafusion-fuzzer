@@ -5,20 +5,23 @@ pub(crate) fn validate_binary_tlp_consistency(
     results: &[QueryExecutionResult],
     oracle_name: &str,
 ) -> Result<()> {
-    if results.len() != 2 {
+    let result_count = results.len();
+    if result_count != 2 {
         return Err(fuzzer_err(&format!(
-            "{} expects 2 query results, got {}",
-            oracle_name,
-            results.len()
+            "{oracle_name} expects 2 query results, got {result_count}"
         )));
     }
 
-    // Skip validation for this run when any branch fails.
-    if results.iter().any(|r| r.result.is_err()) {
-        return Ok(());
-    }
+    let num_ok = results.iter().filter(|r| r.result.is_ok()).count();
+    let num_err = result_count - num_ok;
 
-    validate_value_equivalence(results, 0, 1, oracle_name)
+    match num_ok {
+        2 => validate_value_equivalence(results, 0, 1, oracle_name),
+        0 => Ok(()),
+        _ => Err(fuzzer_err(&format!(
+            "{oracle_name} consistency requires all queries to either succeed or fail; got mixed outcomes (ok={num_ok}, err={num_err})"
+        ))),
+    }
 }
 
 pub(crate) fn validate_value_equivalence(

@@ -155,11 +155,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tlp_having_validate_skips_when_any_query_errors() {
+    async fn tlp_having_validate_fails_for_mixed_query_outcomes() {
         let oracle =
             TlpHavingOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
         let results = vec![
             test_helpers::make_success_result("all", "g", vec![1, 2]),
+            test_helpers::make_error_result("partition_union"),
+        ];
+
+        let err = oracle.validate_consistency(&results).await.unwrap_err();
+        assert!(err.to_string().contains("got mixed outcomes"));
+    }
+
+    #[tokio::test]
+    async fn tlp_having_validate_allows_all_query_errors() {
+        let oracle =
+            TlpHavingOracle::new(1, Arc::new(crate::fuzz_context::GlobalContext::default()));
+        let results = vec![
+            test_helpers::make_error_result("all"),
             test_helpers::make_error_result("partition_union"),
         ];
 
