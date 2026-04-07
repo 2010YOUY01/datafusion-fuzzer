@@ -27,6 +27,19 @@ To run with command-line options:
 cargo run --release -- --config datafusion-fuzzer.toml --rounds 5 --queries-per-round 20
 ```
 
+To run with verbose oracle/query logs to stdout:
+```bash
+RUST_LOG=info cargo run -- --config datafusion-fuzzer.toml --display-logs
+```
+
+## Oracles
+
+The runner currently chooses one oracle at random for each test case:
+
+- `NoCrashOracle`: checks for non-whitelisted crashes/errors.
+- `TlpWhereOracle`: validates TLP partitioning over `WHERE` (`p`, `NOT p`, `p IS NULL`) via value-level multiset comparison.
+- `TlpHavingOracle`: validates TLP partitioning over `HAVING` (`p`, `NOT p`, `p IS NULL`) via value-level multiset comparison.
+
 ## Configuration
 
 The fuzzer supports extensive configuration options to customize the fuzzing process.
@@ -45,18 +58,21 @@ See `datafusion-fuzzer.toml` for an example configuration file:
 seed = 42
 rounds = 3
 queries_per_round = 10
-timeout_seconds = 30
+timeout_seconds = 2
 
 # Logging settings  
-display_logs = true
-enable_tui = false
-# log_path = "logs/datafusion-fuzzer.log"
+display_logs = false
+enable_tui = true
+log_path = "logs"
+sample_interval_secs = 5
 
 # Table generation parameters
 max_column_count = 5
 max_row_count = 100
 max_expr_level = 3
+max_group_by_count = 3
 max_table_count = 3
+max_insert_per_table = 20
 ```
 
 ### Command Line Options
@@ -69,6 +85,8 @@ Options:
   -q, --queries-per-round <QUERIES>      Number of queries per round
   -t, --timeout <TIMEOUT>                Query timeout in seconds
   -l, --log-path <LOG_PATH>              Path to log file
+  -d, --display-logs                     Display logs
+      --enable-tui                       Enable TUI display
   -h, --help                             Print help
   -V, --version                          Print version
 ```
@@ -79,13 +97,14 @@ Options:
 - `max_column_count`: Maximum number of columns per generated table (default: 5)
 - `max_row_count`: Maximum number of rows per generated table (default: 100)
 - `max_expr_level`: Maximum expression nesting level (default: 3)
+- `max_group_by_count`: Maximum number of `GROUP BY` expressions (default: 3)
 
 ## Progress Tracker
 ### SQL Features
 - [x] where
 - [ ] sort + limit, offset
 - [ ] aggregate
-- [ ] having
+- [x] having
 - [ ] join
 - [ ] union/union all/intersect/except
 

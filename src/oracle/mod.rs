@@ -3,8 +3,11 @@
 pub(crate) mod oracle_common;
 pub mod oracle_impl_nested_queries;
 pub mod oracle_impl_no_crash;
+pub mod oracle_impl_tlp_having;
 pub mod oracle_impl_tlp_where;
 pub mod oracle_trait;
+#[cfg(test)]
+pub(crate) mod test_helpers;
 
 use std::sync::Arc;
 
@@ -15,6 +18,7 @@ use crate::fuzz_context::GlobalContext;
 // Re-export main types and traits
 pub use oracle_impl_nested_queries::NestedQueriesOracle;
 pub use oracle_impl_no_crash::NoCrashOracle;
+pub use oracle_impl_tlp_having::TlpHavingOracle;
 pub use oracle_impl_tlp_where::TlpWhereOracle;
 pub use oracle_trait::{Oracle, QueryContext, QueryExecutionResult};
 
@@ -26,6 +30,8 @@ pub enum ConfiguredOracle {
     NestedQueries,
     #[serde(rename = "TlpWhere", alias = "TlpWhereOracle")]
     TlpWhere,
+    #[serde(rename = "TlpHaving", alias = "TlpHavingOracle")]
+    TlpHaving,
 }
 
 impl ConfiguredOracle {
@@ -34,6 +40,7 @@ impl ConfiguredOracle {
             Self::NoCrash => Box::new(NoCrashOracle::new(seed, ctx)),
             Self::NestedQueries => Box::new(NestedQueriesOracle::new(seed, ctx)),
             Self::TlpWhere => Box::new(TlpWhereOracle::new(seed, ctx)),
+            Self::TlpHaving => Box::new(TlpHavingOracle::new(seed, ctx)),
         }
     }
 }

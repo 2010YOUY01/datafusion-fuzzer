@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 // use datafusion::sqlparser::ast;
-use datafusion::{arrow::datatypes::DataType, prelude::Expr};
+use datafusion::{arrow::datatypes::DataType, common::Column, prelude::Expr};
 // Removed unused import: IndexedRandom
 use rand::{Rng, RngCore, rngs::StdRng, seq::SliceRandom};
 
@@ -26,9 +26,27 @@ pub struct SelectStatement {
     join_clauses: Vec<Arc<JoinClause>>,
     /// None means no WHERE clause
     where_clause: Option<Expr>,
+    /// Empty vector means no GROUP BY clause
+    group_by_exprs: Vec<Expr>,
+    /// None means no HAVING clause
+    having_clause: Option<Expr>,
 }
 
 impl SelectStatement {
+    /// Formats the SELECT clause as SQL.
+    pub fn to_select_sql(&self) -> Result<String> {
+        if self.select_exprs.is_empty() {
+            return Ok("SELECT *".to_string());
+        }
+
+        let expr_strings: Result<Vec<String>> = self
+            .select_exprs
+            .iter()
+            .map(crate::common::util::to_sql_string)
+            .collect();
+        Ok(format!("SELECT {}", expr_strings?.join(", ")))
+    }
+
     fn format_from_tables_sql(&self) -> String {
         self.from_clause
             .from_list
@@ -59,24 +77,34 @@ impl SelectStatement {
         self.where_clause.as_ref()
     }
 
+    /// Returns GROUP BY expressions as SQL (comma-separated) if present.
+    pub fn to_group_by_sql(&self) -> Result<Option<String>> {
+        if self.group_by_exprs.is_empty() {
+            return Ok(None);
+        }
+
+        let group_by_strings: Result<Vec<String>> = self
+            .group_by_exprs
+            .iter()
+            .map(crate::common::util::to_sql_string)
+            .collect();
+        Ok(Some(group_by_strings?.join(", ")))
+    }
+
+    /// Returns GROUP BY expressions.
+    pub fn group_by_exprs(&self) -> &[Expr] {
+        &self.group_by_exprs
+    }
+
+    /// Returns the HAVING expression if one was generated.
+    pub fn having_expr(&self) -> Option<&Expr> {
+        self.having_clause.as_ref()
+    }
+
     /// Formats the SELECT statement as a SQL string with pretty formatting
     pub fn to_sql_string(&self) -> Result<String> {
         // ==== SELECT clause ====
-        let mut sql = String::from("SELECT ");
-
-        if self.select_exprs.is_empty() {
-            sql.push('*');
-        } else {
-            let expr_strings: Result<Vec<String>> = self
-                .select_exprs
-                .iter()
-                .map(|expr| {
-                    let unparsed_expr = crate::common::util::to_sql_string(expr)?;
-                    Ok(unparsed_expr)
-                })
-                .collect();
-            sql.push_str(&expr_strings?.join(", "));
-        }
+        let mut sql = self.to_select_sql()?;
 
         // ==== FROM/JOIN clauses ====
         sql.push('\n');
@@ -87,6 +115,17 @@ impl SelectStatement {
         if let Some(where_expr) = &self.where_clause {
             let where_string = crate::common::util::to_sql_string(where_expr)?;
             sql.push_str(&format!("\nWHERE {}", where_string));
+        }
+
+        // ==== GROUP BY clause ====
+        if let Some(group_by_sql) = self.to_group_by_sql()? {
+            sql.push_str(&format!("\nGROUP BY {}", group_by_sql));
+        }
+
+        // ==== HAVING clause ====
+        if let Some(having_expr) = &self.having_clause {
+            let having_string = crate::common::util::to_sql_string(having_expr)?;
+            sql.push_str(&format!("\nHAVING {}", having_string));
         }
 
         Ok(sql)
@@ -108,6 +147,8 @@ struct FromClause {
 /// [ FROM from_table [, ...] ]
 /// [ JOIN_KEYWORD join_table ON join_on_expr ]
 /// [ WHERE where_expr ]
+/// [ GROUP BY group_by_expr [, ...] ]
+/// [ HAVING having_expr ]
 ///
 /// JOIN_KEYWORD := JOIN | INNER JOIN | LEFT JOIN | RIGHT JOIN | FULL JOIN | LEFT ANTI JOIN | LEFT SEMI JOIN | RIGHT ANTI JOIN | RIGHT SEMI JOIN | CROSS JOIN
 pub struct SelectStatementBuilder {
@@ -130,6 +171,10 @@ pub struct SelectStatementBuilder {
     enable_where_clause: InclusionConfig,
     /// Control whether JOIN clauses are generated
     enable_join_clause: InclusionConfig,
+    /// Control whether GROUP BY clause is generated
+    enable_group_by_clause: InclusionConfig,
+    /// Control whether HAVING clause is generated (requires GROUP BY)
+    enable_having_clause: InclusionConfig,
 
     // ==== Intermediate states to build the final select stmt ====
     /// Tables in the FROM clause
@@ -156,6 +201,8 @@ impl SelectStatementBuilder {
             join_clauses: Vec::new(),
             enable_where_clause,
             enable_join_clause,
+            enable_group_by_clause: InclusionConfig::Always(false),
+            enable_having_clause: InclusionConfig::Always(false),
         }
     }
 
@@ -172,6 +219,19 @@ impl SelectStatementBuilder {
         self
     }
 
+    /// Enable or disable GROUP BY generation.
+    pub fn with_enable_group_by_clause(mut self, enable_group_by_clause: InclusionConfig) -> Self {
+        self.enable_group_by_clause = enable_group_by_clause;
+        self
+    }
+
+    /// Enable or disable HAVING generation.
+    /// HAVING can only be emitted when GROUP BY is present.
+    pub fn with_enable_having_clause(mut self, enable_having_clause: InclusionConfig) -> Self {
+        self.enable_having_clause = enable_having_clause;
+        self
+    }
+
     pub fn generate_stmt(&mut self) -> Result<SelectStatement> {
         // ==== Pick src tables ====
         let src_tables = self.pick_src_tables()?;
@@ -184,14 +244,21 @@ impl SelectStatementBuilder {
         // ==== Generate select exprs ====
         let expr_seed = self.rng.next_u64();
         let expr_gen = ExprGenerator::new(expr_seed, self.ctx.clone());
-        let src_columns = ExprGenerator::tables_to_columns(&self.from_tables, &self.ctx);
-        let mut expr_gen = expr_gen.with_src_columns(Arc::new(src_columns));
+        let src_columns = Arc::new(ExprGenerator::tables_to_columns(
+            &self.from_tables,
+            &self.ctx,
+        ));
+        let mut expr_gen = expr_gen.with_src_columns(src_columns.clone());
 
         // Build SELECT clause: generate expression list
         let select_exprs = self.generate_select_exprs(&mut expr_gen)?;
 
         // Build WHERE clause (optional)
         let where_clause = self.generate_where_clause(&mut expr_gen)?;
+
+        // Build GROUP BY and HAVING clauses (optional)
+        let group_by_exprs = self.generate_group_by_exprs(&src_columns)?;
+        let having_clause = self.generate_having_clause(&group_by_exprs)?;
 
         // Build FROM clause
         Ok(SelectStatement {
@@ -205,6 +272,8 @@ impl SelectStatementBuilder {
             },
             join_clauses: self.join_clauses.clone(),
             where_clause,
+            group_by_exprs,
+            having_clause,
         })
     }
 
@@ -351,6 +420,61 @@ impl SelectStatementBuilder {
         } else {
             Ok(None)
         }
+    }
+
+    /// Generate GROUP BY expressions from source columns.
+    fn generate_group_by_exprs(&mut self, src_columns: &Arc<Vec<Column>>) -> Result<Vec<Expr>> {
+        if !self
+            .enable_group_by_clause
+            .should_enable(Some(&mut self.rng))
+            || src_columns.is_empty()
+        {
+            return Ok(Vec::new());
+        }
+
+        let max_group_by_exprs = src_columns
+            .len()
+            .min(self.ctx.runner_config.max_group_by_count as usize);
+        if max_group_by_exprs == 0 {
+            return Ok(Vec::new());
+        }
+
+        let num_group_by_exprs = self.rng.random_range(1..=max_group_by_exprs);
+        let mut column_pool = src_columns.as_ref().clone();
+        column_pool.shuffle(&mut self.rng);
+        let group_by_exprs = column_pool
+            .into_iter()
+            .take(num_group_by_exprs)
+            .map(Expr::Column)
+            .collect();
+
+        Ok(group_by_exprs)
+    }
+
+    /// Generate HAVING clause using columns from GROUP BY expressions.
+    fn generate_having_clause(&mut self, group_by_exprs: &[Expr]) -> Result<Option<Expr>> {
+        if group_by_exprs.is_empty()
+            || !self.enable_having_clause.should_enable(Some(&mut self.rng))
+        {
+            return Ok(None);
+        }
+
+        let group_by_columns: Vec<Column> = group_by_exprs
+            .iter()
+            .filter_map(|expr| match expr {
+                Expr::Column(col) => Some(col.clone()),
+                _ => None,
+            })
+            .collect();
+
+        if group_by_columns.is_empty() {
+            return Ok(None);
+        }
+
+        let mut having_expr_gen = ExprGenerator::new(self.rng.next_u64(), self.ctx.clone())
+            .with_src_columns(Arc::new(group_by_columns));
+        let having_expr = having_expr_gen.generate_random_expr(DataType::Boolean, 0);
+        Ok(Some(having_expr))
     }
 
     /// Generate a random list of SELECT expressions
