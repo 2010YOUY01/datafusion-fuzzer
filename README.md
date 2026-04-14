@@ -1,79 +1,54 @@
 # DataFusion Fuzzer
 
-> **🚧 Work In Progress** 
-> 
-> This project is still under active development. The following documentation is AI-generated and requires future cleanup and validation.
->
-> This is a Rust rewrite of [datafusion-sqlancer](https://github.com/apache/datafusion/issues/11030), originally implemented in Java. The rewrite aims to simplify implementation, enable better integration with existing DataFusion tooling, and make test oracles applicable to `sqllogictests`. See [this issue](https://github.com/apache/datafusion/issues/14535) for more details on the motivation behind the Rust rewrite.
+A fuzzing tool for Apache DataFusion that tests SQL query execution and helps find potential bugs, crashes, and inconsistencies in query results.
 
-A comprehensive fuzzing tool for Apache DataFusion, designed to test SQL query execution and find potential bugs, crashes, or inconsistencies in the query engine.
+## Overview
+This fuzzer primarily:
+1. Generates random tables and SQL queries.
+2. Runs them on DataFusion and checks whether the results satisfy an oracle-defined consistency rule.
+
+### Example
+```text
+Oracle: TLP (Ternary Logic Partitioning)
+
+Random query (Q1):
+    SELECT * FROM t1;
+
+Mutated query (Q2):
+    SELECT * FROM t1 WHERE v1 > 0
+    UNION ALL
+    SELECT * FROM t1 WHERE NOT (v1 > 0)
+    UNION ALL
+    SELECT * FROM t1 WHERE (v1 > 0) IS NULL;
+
+Consistency check:
+    Q1 and Q2 should return the same multiset of rows.
+```
+
+This project is inspired by [SQLancer](https://github.com/sqlancer/sqlancer).
+
+For an introduction to database fuzzing techniques, see this talk by the author of SQLancer: https://youtu.be/Np46NQ6lqP8?si=lSVAU7Jy3H-QtrWV
 
 ## Quick Start
 
-To run the fuzzer with default settings:
+To run the fuzzer with the default sample configuration:
 
 ```bash
-cargo run --release
+cargo run --release -- --config fuzzer-default.toml
 ```
 
-To run with a custom configuration:
+This runs the fuzzer against the DataFusion version specified in `Cargo.toml`.
 
+The config file controls options such as round count, timeout, and log directory.
+
+If a bug is found, use the CLI output and generated log files to reproduce it.
+
+To override values from the configuration file by using CLI arguments:
 ```bash
-cargo run --release -- --config datafusion-fuzzer.toml
+cargo run --release -- --config fuzzer-default.toml --rounds 5 --queries-per-round 20
 ```
 
-To run with command-line options:
-```bash
-cargo run --release -- --config datafusion-fuzzer.toml --rounds 5 --queries-per-round 20
-```
-
-To run with verbose oracle/query logs to stdout:
-```bash
-RUST_LOG=info cargo run -- --config datafusion-fuzzer.toml --display-logs
-```
-
-## Oracles
-
-The runner currently chooses one oracle at random for each test case:
-
-- `NoCrashOracle`: checks for non-whitelisted crashes/errors.
-- `TlpWhereOracle`: validates TLP partitioning over `WHERE` (`p`, `NOT p`, `p IS NULL`) via value-level multiset comparison.
-- `TlpHavingOracle`: validates TLP partitioning over `HAVING` (`p`, `NOT p`, `p IS NULL`) via value-level multiset comparison.
-
-## Configuration
-
-The fuzzer supports extensive configuration options to customize the fuzzing process.
-
-You can configure DataFusion Fuzzer in two ways:
-
-1. **Configuration file**: Use a TOML file to specify detailed settings
-2. **Command-line arguments**: Override configuration file settings or use standalone
-
-### Configuration File
-
-See `datafusion-fuzzer.toml` for an example configuration file:
-
-```toml
-# Fuzzing execution settings
-seed = 42
-rounds = 3
-queries_per_round = 10
-timeout_seconds = 2
-
-# Logging settings  
-display_logs = false
-enable_tui = true
-log_path = "logs"
-sample_interval_secs = 5
-
-# Table generation parameters
-max_column_count = 5
-max_row_count = 100
-max_expr_level = 3
-max_group_by_count = 3
-max_table_count = 3
-max_insert_per_table = 20
-```
+See `fuzzer-default.toml` for supported options.
 
 ### Command Line Options
 
@@ -91,27 +66,28 @@ Options:
   -V, --version                          Print version
 ```
 
-### Configuration Parameters
+## Roadmap
 
-- `max_table_count`: Maximum number of tables that can be selected in a single query (default: 3)
-- `max_column_count`: Maximum number of columns per generated table (default: 5)
-- `max_row_count`: Maximum number of rows per generated table (default: 100)
-- `max_expr_level`: Maximum expression nesting level (default: 3)
-- `max_group_by_count`: Maximum number of `GROUP BY` expressions (default: 3)
+### Implemented Oracles
+The runner currently chooses one oracle at random for each test case:
 
-## Progress Tracker
+- [x] `NoCrashOracle`: checks for non-whitelisted crashes and errors.
+- [x] `TlpWhereOracle`: validates TLP partitioning over `WHERE` (`p`, `NOT p`, `p IS NULL`) using value-level multiset comparison.
+- [x] `TlpHavingOracle`: validates TLP partitioning over `HAVING` (`p`, `NOT p`, `p IS NULL`) using value-level multiset comparison.
+- [ ] `NoREC` (planned): [paper](https://www.manuelrigger.at/preprints/NoREC.pdf)
+
 ### SQL Features
-- [x] where
-- [ ] sort + limit, offset
-- [ ] aggregate
-- [x] having
-- [ ] join
-- [ ] union/union all/intersect/except
+- [x] WHERE
+- [ ] SORT + LIMIT/OFFSET
+- [ ] AGGREGATE
+- [x] HAVING
+- [ ] JOIN
+- [ ] UNION/UNION ALL/INTERSECT/EXCEPT
 
-### SQL - Subqueries
-- [ ] views
-- [ ] scalar subquery
-- [ ] 'relation-like' subquery
+### SQL Subqueries
+- [ ] Views
+- [ ] Scalar subquery
+- [ ] `Relation-like` subquery
 
 ### Expressions
 - [ ] Operators
@@ -120,15 +96,11 @@ Options:
 - [ ] Window Functions
 
 ### Types
-- [ ] Complete Primitive types
+- [ ] Complete primitive type coverage
 - [ ] Time-related types
 - [ ] Array types
-- [ ] Struct/Json
+- [ ] Struct/JSON
 
 ### Infrastructure
 - [x] CLI
 - [x] Oracle interface
-
-## License
-
-[MIT](LICENSE)
