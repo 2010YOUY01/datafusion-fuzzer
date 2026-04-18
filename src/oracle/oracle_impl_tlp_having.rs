@@ -58,7 +58,8 @@ impl Oracle for TlpHavingOracle {
         .with_allow_derived_tables(false)
         .with_max_table_count(1)
         .with_enable_group_by_clause(InclusionConfig::Always(true))
-        .with_enable_having_clause(InclusionConfig::Always(true));
+        .with_enable_having_clause(InclusionConfig::Always(true))
+        .with_valid_boolean_exprs_only(true);
 
         let stmt = stmt_builder.generate_stmt()?;
         let source_sql = stmt.to_from_join_sql()?;

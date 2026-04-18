@@ -1,10 +1,16 @@
 use std::sync::Arc;
 
-use datafusion::{arrow::datatypes::DataType, common::Column, prelude::Expr, sql::TableReference};
+use datafusion::{
+    arrow::datatypes::DataType,
+    common::Column,
+    logical_expr::{BinaryExpr, Operator},
+    prelude::Expr,
+    sql::TableReference,
+};
 use rand::{Rng, rngs::StdRng};
 
 use crate::{
-    common::{FuzzerDataType, LogicalTable, rng::rng_from_seed},
+    common::{FuzzerDataType, LogicalTable, get_available_data_types, rng::rng_from_seed},
     fuzz_context::GlobalContext,
 };
 
@@ -105,6 +111,28 @@ impl ExprGenerator {
         }
     }
 
+    /// Generate a boolean expression that stays within simple, well-typed patterns.
+    /// This is used by TLP oracles to avoid false positives from intentionally invalid expressions.
+    pub fn generate_valid_boolean_expr(&mut self, cur_level: u32) -> Expr {
+        if cur_level >= self.max_level || self.rng.random_bool(0.5) {
+            return self.generate_valid_boolean_leaf();
+        }
+
+        match self.rng.random_range(0..3) {
+            0 => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(self.generate_valid_boolean_expr(cur_level + 1)),
+                Operator::And,
+                Box::new(self.generate_valid_boolean_expr(cur_level + 1)),
+            )),
+            1 => Expr::BinaryExpr(BinaryExpr::new(
+                Box::new(self.generate_valid_boolean_expr(cur_level + 1)),
+                Operator::Or,
+                Box::new(self.generate_valid_boolean_expr(cur_level + 1)),
+            )),
+            _ => self.generate_valid_boolean_leaf(),
+        }
+    }
+
     // Generate either a constant value or a column reference
     fn generate_leaf_expr(&mut self, target_type: DataType) -> Expr {
         // For certain chance: try to generate a column reference if available
@@ -124,6 +152,72 @@ impl ExprGenerator {
                 generate_scalar_literal(&self.ctx, &mut self.rng, &FuzzerDataType::Boolean);
             Expr::Literal(scalar_value, None)
         }
+    }
+
+    fn generate_valid_boolean_leaf(&mut self) -> Expr {
+        match self.rng.random_range(0..4) {
+            0 => self.generate_leaf_expr(DataType::Boolean),
+            1 => self.generate_valid_equality_expr(),
+            2 => self.generate_valid_ordering_expr(),
+            _ => self.generate_valid_like_expr(),
+        }
+    }
+
+    fn generate_valid_equality_expr(&mut self) -> Expr {
+        let comparable_types: Vec<DataType> = get_available_data_types()
+            .iter()
+            .filter(|ty| !matches!(ty, FuzzerDataType::IntervalMonthDayNano))
+            .map(|ty| ty.to_datafusion_type())
+            .collect();
+        let data_type = comparable_types[self.rng.random_range(0..comparable_types.len())].clone();
+        let left = self.generate_leaf_expr(data_type.clone());
+        let right = self.generate_leaf_expr(data_type);
+        let operator = match self.rng.random_range(0..2) {
+            0 => Operator::Eq,
+            _ => Operator::NotEq,
+        };
+
+        Expr::BinaryExpr(BinaryExpr::new(Box::new(left), operator, Box::new(right)))
+    }
+
+    fn generate_valid_ordering_expr(&mut self) -> Expr {
+        let orderable_types: Vec<DataType> = get_available_data_types()
+            .iter()
+            .filter(|ty| {
+                ty.is_numeric()
+                    || matches!(
+                        ty,
+                        FuzzerDataType::Date32
+                            | FuzzerDataType::Time64Nanosecond
+                            | FuzzerDataType::Timestamp
+                    )
+            })
+            .map(|ty| ty.to_datafusion_type())
+            .collect();
+        let data_type = orderable_types[self.rng.random_range(0..orderable_types.len())].clone();
+        let left = self.generate_leaf_expr(data_type.clone());
+        let right = self.generate_leaf_expr(data_type);
+        let operator = match self.rng.random_range(0..4) {
+            0 => Operator::Lt,
+            1 => Operator::LtEq,
+            2 => Operator::Gt,
+            _ => Operator::GtEq,
+        };
+
+        Expr::BinaryExpr(BinaryExpr::new(Box::new(left), operator, Box::new(right)))
+    }
+
+    fn generate_valid_like_expr(&mut self) -> Expr {
+        let left = self.generate_leaf_expr(DataType::Utf8);
+        let right = self.generate_leaf_expr(DataType::Utf8);
+        let operator = match self.rng.random_range(0..4) {
+            0 => Operator::LikeMatch,
+            1 => Operator::ILikeMatch,
+            2 => Operator::NotLikeMatch,
+            _ => Operator::NotILikeMatch,
+        };
+
+        Expr::BinaryExpr(BinaryExpr::new(Box::new(left), operator, Box::new(right)))
     }
 
     fn get_all_columns_of_type(&self, target_type: DataType) -> Vec<Column> {
@@ -163,5 +257,111 @@ impl ExprGenerator {
         // TODO: validate the number of `child_exprs`
         let expr_impl = base_expr.to_impl();
         expr_impl.build_expr(child_exprs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::{LogicalColumn, init_available_data_types};
+
+    #[tokio::test]
+    async fn valid_boolean_exprs_execute_successfully() {
+        init_available_data_types();
+        let ctx = Arc::new(crate::fuzz_context::GlobalContext::default());
+        let session_ctx = ctx.runtime_context.get_session_context();
+
+        session_ctx
+            .sql(
+                "CREATE TABLE t0 (
+                    b BOOLEAN,
+                    i BIGINT,
+                    f DOUBLE,
+                    d DATE,
+                    tm TIME,
+                    ts TIMESTAMP,
+                    s VARCHAR
+                )",
+            )
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        session_ctx
+            .sql(
+                "INSERT INTO t0 VALUES (
+                    true,
+                    1,
+                    1.5,
+                    CAST('2024-01-01' AS DATE),
+                    CAST('12:00:00' AS TIME),
+                    CAST('2024-01-01T12:00:00' AS TIMESTAMP),
+                    'abc'
+                )",
+            )
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        let logical_table = Arc::new(LogicalTable::with_columns(
+            "t0".to_string(),
+            vec![
+                LogicalColumn {
+                    name: "b".to_string(),
+                    data_type: FuzzerDataType::Boolean,
+                },
+                LogicalColumn {
+                    name: "i".to_string(),
+                    data_type: FuzzerDataType::Int64,
+                },
+                LogicalColumn {
+                    name: "f".to_string(),
+                    data_type: FuzzerDataType::Float64,
+                },
+                LogicalColumn {
+                    name: "d".to_string(),
+                    data_type: FuzzerDataType::Date32,
+                },
+                LogicalColumn {
+                    name: "tm".to_string(),
+                    data_type: FuzzerDataType::Time64Nanosecond,
+                },
+                LogicalColumn {
+                    name: "ts".to_string(),
+                    data_type: FuzzerDataType::Timestamp,
+                },
+                LogicalColumn {
+                    name: "s".to_string(),
+                    data_type: FuzzerDataType::String,
+                },
+            ],
+        ));
+
+        ctx.runtime_context
+            .registered_tables
+            .write()
+            .unwrap()
+            .insert("t0".to_string(), Arc::clone(&logical_table));
+
+        let src_columns = Arc::new(ExprGenerator::tables_to_columns(&[logical_table], &ctx));
+
+        for seed in 0..32 {
+            let mut expr_gen = ExprGenerator::new(seed, Arc::clone(&ctx))
+                .with_src_columns(Arc::clone(&src_columns));
+            let expr = expr_gen.generate_valid_boolean_expr(0);
+            let expr_sql = crate::common::util::to_sql_string(&expr).unwrap();
+            let query = format!("SELECT * FROM t0 WHERE {}", expr_sql);
+            session_ctx
+                .sql(&query)
+                .await
+                .unwrap()
+                .collect()
+                .await
+                .unwrap();
+        }
     }
 }

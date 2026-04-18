@@ -175,6 +175,8 @@ pub struct SelectStatementBuilder {
     enable_group_by_clause: InclusionConfig,
     /// Control whether HAVING clause is generated (requires GROUP BY)
     enable_having_clause: InclusionConfig,
+    /// Restrict WHERE/HAVING predicates to well-typed expressions.
+    valid_boolean_exprs_only: bool,
 
     // ==== Intermediate states to build the final select stmt ====
     /// Tables in the FROM clause
@@ -203,6 +205,7 @@ impl SelectStatementBuilder {
             enable_join_clause,
             enable_group_by_clause: InclusionConfig::Always(false),
             enable_having_clause: InclusionConfig::Always(false),
+            valid_boolean_exprs_only: false,
         }
     }
 
@@ -229,6 +232,12 @@ impl SelectStatementBuilder {
     /// HAVING can only be emitted when GROUP BY is present.
     pub fn with_enable_having_clause(mut self, enable_having_clause: InclusionConfig) -> Self {
         self.enable_having_clause = enable_having_clause;
+        self
+    }
+
+    /// Restrict WHERE/HAVING predicates to well-typed expressions.
+    pub fn with_valid_boolean_exprs_only(mut self, valid_boolean_exprs_only: bool) -> Self {
+        self.valid_boolean_exprs_only = valid_boolean_exprs_only;
         self
     }
 
@@ -414,8 +423,11 @@ impl SelectStatementBuilder {
         // Decide if the WHERE clause should be generated
         if self.enable_where_clause.should_enable(Some(&mut self.rng)) {
             // Generate a boolean expression for the WHERE clause
-            let where_expr =
-                expr_gen.generate_random_expr(datafusion::arrow::datatypes::DataType::Boolean, 0);
+            let where_expr = if self.valid_boolean_exprs_only {
+                expr_gen.generate_valid_boolean_expr(0)
+            } else {
+                expr_gen.generate_random_expr(datafusion::arrow::datatypes::DataType::Boolean, 0)
+            };
             Ok(Some(where_expr))
         } else {
             Ok(None)
@@ -473,7 +485,11 @@ impl SelectStatementBuilder {
 
         let mut having_expr_gen = ExprGenerator::new(self.rng.next_u64(), self.ctx.clone())
             .with_src_columns(Arc::new(group_by_columns));
-        let having_expr = having_expr_gen.generate_random_expr(DataType::Boolean, 0);
+        let having_expr = if self.valid_boolean_exprs_only {
+            having_expr_gen.generate_valid_boolean_expr(0)
+        } else {
+            having_expr_gen.generate_random_expr(DataType::Boolean, 0)
+        };
         Ok(Some(having_expr))
     }
 
