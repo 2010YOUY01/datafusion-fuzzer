@@ -104,11 +104,23 @@ static ERROR_PATTERNS: LazyLock<Vec<ErrorPattern>> = LazyLock::new(|| {
             error_sub: "Casting from",
         },
         ErrorPattern::QueryAndErrorContains {
+            query_sub: "to_date(",
+            error_sub: "Error parsing timestamp from",
+        },
+        ErrorPattern::QueryAndErrorContains {
             query_sub: "to_char(",
             error_sub: "Cannot cast",
         },
         ErrorPattern::Contains("Regular expression did not compile"),
         ErrorPattern::Contains("to_unixtime function unsupported data type"),
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "to_unixtime(",
+            error_sub: "Error parsing timestamp from",
+        },
+        ErrorPattern::QueryAndErrorContains {
+            query_sub: "to_timestamp",
+            error_sub: "Error parsing timestamp from",
+        },
         // =========================
         // Known Issues
         // =========================
@@ -232,4 +244,33 @@ pub fn get_configured_patterns() -> Vec<String> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_error_whitelisted;
+
+    #[test]
+    fn whitelists_timestamp_parse_errors_for_to_timestamp_queries() {
+        let error = "Query execution failed: Execution error: Error parsing timestamp from 'abc' using format 'fmt': input contains invalid characters";
+        let query = "SELECT to_timestamp_seconds(66, 'fmt')";
+
+        assert!(is_error_whitelisted(error, Some(query)));
+    }
+
+    #[test]
+    fn does_not_whitelist_timestamp_parse_errors_without_to_timestamp_query() {
+        let error = "Query execution failed: Execution error: Error parsing timestamp from 'abc' using format 'fmt': input contains invalid characters";
+        let query = "SELECT 1";
+
+        assert!(!is_error_whitelisted(error, Some(query)));
+    }
+
+    #[test]
+    fn whitelists_timestamp_parse_errors_for_to_date_queries() {
+        let error = "Query execution failed: Execution error: Error parsing timestamp from 'abc' using format 'fmt': input contains invalid characters";
+        let query = "SELECT to_date('abc', 'fmt')";
+
+        assert!(is_error_whitelisted(error, Some(query)));
+    }
 }
