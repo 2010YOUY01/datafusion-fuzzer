@@ -1092,16 +1092,19 @@ impl BaseExprWithInfo for ToUnixtimeExpr {
         ExprWrapper {
             expr: BaseExpr::ToUnixtime,
             return_type: return_types,
-            inferred_child_signature: vec![vec![
-                TypeGroup::OneOf(vec![
+            inferred_child_signature: vec![
+                vec![TypeGroup::OneOf(vec![
                     FuzzerDataType::String.to_datafusion_type(),
                     FuzzerDataType::Date32.to_datafusion_type(),
                     FuzzerDataType::Timestamp.to_datafusion_type(),
                     FuzzerDataType::Float32.to_datafusion_type(),
                     FuzzerDataType::Float64.to_datafusion_type(),
-                ]),
-                TypeGroup::OneOf(vec![FuzzerDataType::String.to_datafusion_type()]),
-            ]],
+                ])],
+                vec![
+                    TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                    TypeGroup::Fixed(FuzzerDataType::String.to_datafusion_type()),
+                ],
+            ],
         }
     }
 
