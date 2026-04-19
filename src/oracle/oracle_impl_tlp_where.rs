@@ -49,7 +49,8 @@ impl Oracle for TlpWhereOracle {
             InclusionConfig::Always(false),
         )
         .with_allow_derived_tables(false)
-        .with_max_table_count(1);
+        .with_max_table_count(1)
+        .with_valid_boolean_exprs_only(true);
 
         let stmt = stmt_builder.generate_stmt()?;
         let source_sql = stmt.to_from_join_sql()?;
