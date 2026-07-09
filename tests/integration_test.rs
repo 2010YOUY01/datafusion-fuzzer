@@ -160,6 +160,24 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     FROM t2
     WHERE (NULL) IS NULL
 
+    === round=1 query=4 oracle=TlpWhereOracle query_seed=310307 ===
+    --- statement=1 context=TLP-WHERE all ---
+    SELECT *
+    FROM t0
+
+    --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT *
+    FROM t0
+    WHERE ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME)))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE NOT ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME)))
+    UNION ALL
+    SELECT *
+    FROM t0
+    WHERE ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME))) IS NULL
+
     === round=1 query=5 oracle=TlpWhereOracle query_seed=310308 ===
     --- statement=1 context=TLP-WHERE all ---
     SELECT *
@@ -168,15 +186,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t0
-    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
+    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE NOT ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
+    WHERE NOT ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"'))))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))) IS NULL
+    WHERE ((to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))) IS NULL
 
     === round=2 query=1 oracle=TlpWhereOracle query_seed=311304 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -268,15 +286,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     FROM t2
     WHERE (true) IS NULL
     "#);
-    insta::assert_snapshot!(run_output.stats_summary, @r#"
+    insta::assert_snapshot!(run_output.stats_summary, @"
     ============================================================
     🎯 DataFusion Fuzzer - Final Statistics
     ============================================================
     📊 Execution Summary:
       • Rounds Completed: 2
-      • Queries Executed: 18
-      • Query Success Rate: 88.89%
-    "#);
+      • Queries Executed: 20
+      • Query Success Rate: 85.00%
+    ");
 
     fs::remove_dir_all(&log_dir)?;
 
@@ -361,29 +379,55 @@ fn full_run_logs_expected_queries_for_tlp_having_oracle() -> Result<(), Box<dyn 
     GROUP BY t2.col_t2_1_string
     HAVING (true) IS NULL
 
+    === round=1 query=4 oracle=TlpHavingOracle query_seed=310307 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_3_date32
+    FROM t0
+    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME))
+    GROUP BY t0.col_t0_3_date32
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_3_date32
+    FROM t0
+    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME))
+    GROUP BY t0.col_t0_3_date32
+    HAVING (false)
+    UNION ALL
+    SELECT t0.col_t0_3_date32
+    FROM t0
+    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME))
+    GROUP BY t0.col_t0_3_date32
+    HAVING NOT (false)
+    UNION ALL
+    SELECT t0.col_t0_3_date32
+    FROM t0
+    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM CAST('23:58:05.767381046' AS TIME))
+    GROUP BY t0.col_t0_3_date32
+    HAVING (false) IS NULL
+
     === round=1 query=5 oracle=TlpHavingOracle query_seed=310308 ===
     --- statement=1 context=TLP-HAVING all groups ---
     SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     FROM t0
-    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
     GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     FROM t0
-    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
     GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     HAVING ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv['))
     UNION ALL
     SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     FROM t0
-    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
     GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     HAVING NOT ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv['))
     UNION ALL
     SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     FROM t0
-    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17 08:39:22.305135405 -09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
+    WHERE (to_char(CAST('2052-04-28' AS DATE), '=B  2v') !~* to_char(INTERVAL '1 MONS -11 DAYS -0.658344865 SECS', to_char(CAST('2056-06-17T08:39:22.305135405-09:00' AS TIMESTAMP), '9L4l6.-bG6dPLWk-7 ~9azH0^V;7q0S#|%@?MyX"')))
     GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_decimal128
     HAVING ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv[')) IS NULL
 
@@ -412,6 +456,32 @@ fn full_run_logs_expected_queries_for_tlp_having_oracle() -> Result<(), Box<dyn 
     WHERE false
     GROUP BY t0.col_t0_2_time64_nanosecond, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
     HAVING (false) IS NULL
+
+    === round=2 query=2 oracle=TlpHavingOracle query_seed=311305 ===
+    --- statement=1 context=TLP-HAVING all groups ---
+    SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
+
+    --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
+    SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
+    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW'))))
+    UNION ALL
+    SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
+    HAVING NOT (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW'))))
+    UNION ALL
+    SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
+    FROM t0
+    WHERE true
+    GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
+    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW')))) IS NULL
 
     === round=2 query=3 oracle=TlpHavingOracle query_seed=311306 ===
     --- statement=1 context=TLP-HAVING all groups ---
@@ -489,8 +559,8 @@ fn full_run_logs_expected_queries_for_tlp_having_oracle() -> Result<(), Box<dyn 
     ============================================================
     📊 Execution Summary:
       • Rounds Completed: 2
-      • Queries Executed: 16
-      • Query Success Rate: 81.25%
+      • Queries Executed: 20
+      • Query Success Rate: 75.00%
     ");
 
     fs::remove_dir_all(&log_dir)?;
