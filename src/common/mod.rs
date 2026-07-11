@@ -32,6 +32,7 @@ pub mod value_generator;
 /// inside `GeneartedValue` type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FuzzerDataType {
+    Int8,
     Int32,
     Int64,
     UInt32,
@@ -57,6 +58,7 @@ impl FuzzerDataType {
     /// Convert fuzzer data type to DataFusion data type
     pub fn to_datafusion_type(&self) -> DataType {
         match self {
+            FuzzerDataType::Int8 => DataType::Int8,
             FuzzerDataType::Int32 => DataType::Int32,
             FuzzerDataType::Int64 => DataType::Int64,
             FuzzerDataType::UInt32 => DataType::UInt32,
@@ -90,6 +92,7 @@ impl FuzzerDataType {
     /// Convert DataFusion data type to fuzzer data type (if supported)
     pub fn from_datafusion_type(data_type: &DataType) -> Option<Self> {
         match data_type {
+            DataType::Int8 => Some(FuzzerDataType::Int8),
             DataType::Int32 => Some(FuzzerDataType::Int32),
             DataType::Int64 => Some(FuzzerDataType::Int64),
             DataType::UInt32 => Some(FuzzerDataType::UInt32),
@@ -119,6 +122,7 @@ impl FuzzerDataType {
     /// Get the display name for column naming
     pub fn display_name(&self) -> &'static str {
         match self {
+            FuzzerDataType::Int8 => "int8",
             FuzzerDataType::Int32 => "int32",
             FuzzerDataType::Int64 => "int64",
             FuzzerDataType::UInt32 => "uint32",
@@ -137,7 +141,8 @@ impl FuzzerDataType {
 
     pub fn is_numeric(&self) -> bool {
         match self {
-            FuzzerDataType::Int32
+            FuzzerDataType::Int8
+            | FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32
             | FuzzerDataType::UInt64
@@ -159,7 +164,8 @@ impl FuzzerDataType {
             | FuzzerDataType::Time64Nanosecond
             | FuzzerDataType::Timestamp
             | FuzzerDataType::IntervalMonthDayNano => true,
-            FuzzerDataType::Int32
+            FuzzerDataType::Int8
+            | FuzzerDataType::Int32
             | FuzzerDataType::Int64
             | FuzzerDataType::UInt32
             | FuzzerDataType::UInt64
@@ -180,6 +186,7 @@ impl FuzzerDataType {
     /// Convert to SQL type string for CREATE TABLE statements
     pub fn to_sql_type(&self) -> &'static str {
         match self {
+            FuzzerDataType::Int8 => "TINYINT",
             FuzzerDataType::Int32 => "INT",
             FuzzerDataType::Int64 => "BIGINT",
             FuzzerDataType::UInt32 => "INT UNSIGNED",
@@ -215,6 +222,7 @@ static AVAILABLE_DATA_TYPES: OnceLock<Vec<FuzzerDataType>> = OnceLock::new();
 pub fn init_available_data_types() {
     AVAILABLE_DATA_TYPES.get_or_init(|| {
         vec![
+            FuzzerDataType::Int8,
             FuzzerDataType::Int32,
             FuzzerDataType::Int64,
             FuzzerDataType::UInt32,
@@ -376,6 +384,21 @@ impl InclusionConfig {
 mod tests {
     use super::*;
     use crate::common::rng::rng_from_seed;
+
+    #[test]
+    fn test_int8_type_properties() {
+        let int8_type = FuzzerDataType::Int8;
+
+        assert_eq!(int8_type.to_datafusion_type(), DataType::Int8);
+        assert_eq!(
+            FuzzerDataType::from_datafusion_type(&DataType::Int8),
+            Some(FuzzerDataType::Int8)
+        );
+        assert_eq!(int8_type.display_name(), "int8");
+        assert_eq!(int8_type.to_sql_type(), "TINYINT");
+        assert!(int8_type.is_numeric());
+        assert!(!int8_type.is_time());
+    }
 
     #[test]
     fn test_simplified_decimal_type() {

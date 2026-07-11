@@ -6,6 +6,7 @@ use std::sync::Arc;
 /// Raw value representation for generated data
 #[derive(Debug, Clone)]
 pub enum GeneratedValue {
+    Int8(i8),
     Int32(i32),
     Int64(i64),
     UInt32(u32),
@@ -60,6 +61,11 @@ pub fn generate_value(
     }
 
     match fuzzer_type {
+        FuzzerDataType::Int8 => {
+            let value = rng.random_range(config.int_range.0 as i8..=config.int_range.1 as i8);
+            GeneratedValue::Int8(value)
+        }
+
         FuzzerDataType::Int32 => {
             let value = rng.random_range(config.int_range.0..=config.int_range.1);
             GeneratedValue::Int32(value)
@@ -190,6 +196,7 @@ impl GeneratedValue {
     /// Convert to SQL string representation
     pub fn to_sql_string(&self) -> String {
         match self {
+            GeneratedValue::Int8(v) => v.to_string(),
             GeneratedValue::Int32(v) => v.to_string(),
             GeneratedValue::Int64(v) => v.to_string(),
             GeneratedValue::UInt32(v) => v.to_string(),
@@ -341,6 +348,7 @@ impl GeneratedValue {
         use datafusion::scalar::ScalarValue;
 
         match self {
+            GeneratedValue::Int8(v) => ScalarValue::Int8(Some(*v)),
             GeneratedValue::Int32(v) => ScalarValue::Int32(Some(*v)),
             GeneratedValue::Int64(v) => ScalarValue::Int64(Some(*v)),
             GeneratedValue::UInt32(v) => ScalarValue::UInt32(Some(*v)),
@@ -508,6 +516,32 @@ fn nanoseconds_to_timestamp_string(nanoseconds_since_epoch: i64) -> String {
 mod tests {
     use super::*;
     use crate::common::rng::rng_from_seed;
+
+    #[test]
+    fn test_int8_value_generation_and_conversions() {
+        let mut rng = rng_from_seed(42);
+        let config = ValueGenerationConfig {
+            nullable: false,
+            int_range: (-128, 127),
+            ..ValueGenerationConfig::default()
+        };
+
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &FuzzerDataType::Int8, &config);
+
+            match &value {
+                GeneratedValue::Int8(v) => {
+                    assert!((-128..=127).contains(v));
+                    assert_eq!(value.to_sql_string(), v.to_string());
+                    assert_eq!(
+                        value.to_scalar_value(),
+                        datafusion::scalar::ScalarValue::Int8(Some(*v))
+                    );
+                }
+                other => panic!("Expected Int8 value, got: {other:?}"),
+            }
+        }
+    }
 
     #[test]
     fn test_cached_config_in_runtime_context() {
