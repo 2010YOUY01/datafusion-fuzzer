@@ -33,8 +33,11 @@ pub mod value_generator;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FuzzerDataType {
     Int8,
+    Int16,
     Int32,
     Int64,
+    UInt8,
+    UInt16,
     UInt32,
     UInt64,
     Float32,
@@ -61,8 +64,11 @@ impl FuzzerDataType {
     pub fn to_datafusion_type(&self) -> DataType {
         match self {
             FuzzerDataType::Int8 => DataType::Int8,
+            FuzzerDataType::Int16 => DataType::Int16,
             FuzzerDataType::Int32 => DataType::Int32,
             FuzzerDataType::Int64 => DataType::Int64,
+            FuzzerDataType::UInt8 => DataType::UInt8,
+            FuzzerDataType::UInt16 => DataType::UInt16,
             FuzzerDataType::UInt32 => DataType::UInt32,
             FuzzerDataType::UInt64 => DataType::UInt64,
             FuzzerDataType::Float32 => DataType::Float32,
@@ -96,8 +102,11 @@ impl FuzzerDataType {
     pub fn from_datafusion_type(data_type: &DataType) -> Option<Self> {
         match data_type {
             DataType::Int8 => Some(FuzzerDataType::Int8),
+            DataType::Int16 => Some(FuzzerDataType::Int16),
             DataType::Int32 => Some(FuzzerDataType::Int32),
             DataType::Int64 => Some(FuzzerDataType::Int64),
+            DataType::UInt8 => Some(FuzzerDataType::UInt8),
+            DataType::UInt16 => Some(FuzzerDataType::UInt16),
             DataType::UInt32 => Some(FuzzerDataType::UInt32),
             DataType::UInt64 => Some(FuzzerDataType::UInt64),
             DataType::Float32 => Some(FuzzerDataType::Float32),
@@ -129,8 +138,11 @@ impl FuzzerDataType {
     pub fn display_name(&self) -> &'static str {
         match self {
             FuzzerDataType::Int8 => "int8",
+            FuzzerDataType::Int16 => "int16",
             FuzzerDataType::Int32 => "int32",
             FuzzerDataType::Int64 => "int64",
+            FuzzerDataType::UInt8 => "uint8",
+            FuzzerDataType::UInt16 => "uint16",
             FuzzerDataType::UInt32 => "uint32",
             FuzzerDataType::UInt64 => "uint64",
             FuzzerDataType::Float32 => "float32",
@@ -149,8 +161,11 @@ impl FuzzerDataType {
     pub fn is_numeric(&self) -> bool {
         match self {
             FuzzerDataType::Int8
+            | FuzzerDataType::Int16
             | FuzzerDataType::Int32
             | FuzzerDataType::Int64
+            | FuzzerDataType::UInt8
+            | FuzzerDataType::UInt16
             | FuzzerDataType::UInt32
             | FuzzerDataType::UInt64
             | FuzzerDataType::Float32
@@ -173,8 +188,11 @@ impl FuzzerDataType {
             | FuzzerDataType::Timestamp
             | FuzzerDataType::IntervalMonthDayNano => true,
             FuzzerDataType::Int8
+            | FuzzerDataType::Int16
             | FuzzerDataType::Int32
             | FuzzerDataType::Int64
+            | FuzzerDataType::UInt8
+            | FuzzerDataType::UInt16
             | FuzzerDataType::UInt32
             | FuzzerDataType::UInt64
             | FuzzerDataType::Float32
@@ -196,8 +214,11 @@ impl FuzzerDataType {
     pub fn to_sql_type(&self) -> &'static str {
         match self {
             FuzzerDataType::Int8 => "TINYINT",
+            FuzzerDataType::Int16 => "SMALLINT",
             FuzzerDataType::Int32 => "INT",
             FuzzerDataType::Int64 => "BIGINT",
+            FuzzerDataType::UInt8 => "TINYINT UNSIGNED",
+            FuzzerDataType::UInt16 => "SMALLINT UNSIGNED",
             FuzzerDataType::UInt32 => "INT UNSIGNED",
             FuzzerDataType::UInt64 => "BIGINT UNSIGNED",
             FuzzerDataType::Float32 => "FLOAT",
@@ -233,8 +254,11 @@ pub fn init_available_data_types() {
     AVAILABLE_DATA_TYPES.get_or_init(|| {
         vec![
             FuzzerDataType::Int8,
+            FuzzerDataType::Int16,
             FuzzerDataType::Int32,
             FuzzerDataType::Int64,
+            FuzzerDataType::UInt8,
+            FuzzerDataType::UInt16,
             FuzzerDataType::UInt32,
             FuzzerDataType::UInt64,
             FuzzerDataType::Float32,
@@ -522,6 +546,36 @@ mod tests {
                 }
                 other => panic!("Expected Decimal value, got: {:?}", other),
             }
+        }
+    }
+    #[test]
+    fn test_remaining_integer_type_properties() {
+        let cases = [
+            (FuzzerDataType::Int16, DataType::Int16, "int16", "SMALLINT"),
+            (
+                FuzzerDataType::UInt8,
+                DataType::UInt8,
+                "uint8",
+                "TINYINT UNSIGNED",
+            ),
+            (
+                FuzzerDataType::UInt16,
+                DataType::UInt16,
+                "uint16",
+                "SMALLINT UNSIGNED",
+            ),
+        ];
+
+        for (fuzzer_type, datafusion_type, display_name, sql_type) in cases {
+            assert_eq!(fuzzer_type.to_datafusion_type(), datafusion_type);
+            assert_eq!(
+                FuzzerDataType::from_datafusion_type(&datafusion_type),
+                Some(fuzzer_type.clone())
+            );
+            assert_eq!(fuzzer_type.display_name(), display_name);
+            assert_eq!(fuzzer_type.to_sql_type(), sql_type);
+            assert!(fuzzer_type.is_numeric());
+            assert!(!fuzzer_type.is_time());
         }
     }
 }
