@@ -52,6 +52,8 @@ pub enum FuzzerDataType {
     IntervalMonthDayNano,
     // String type for text data
     String,
+    // List of Int32 values, the first (simplest) array type
+    Int32Array,
 }
 
 impl FuzzerDataType {
@@ -86,6 +88,7 @@ impl FuzzerDataType {
                 DataType::Interval(datafusion::arrow::datatypes::IntervalUnit::MonthDayNano)
             }
             FuzzerDataType::String => DataType::Utf8,
+            FuzzerDataType::Int32Array => DataType::new_list(DataType::Int32, true),
         }
     }
 
@@ -115,6 +118,9 @@ impl FuzzerDataType {
                 Some(FuzzerDataType::IntervalMonthDayNano)
             }
             DataType::Utf8 => Some(FuzzerDataType::String),
+            DataType::List(field) if *field.data_type() == DataType::Int32 => {
+                Some(FuzzerDataType::Int32Array)
+            }
             _ => None,
         }
     }
@@ -136,6 +142,7 @@ impl FuzzerDataType {
             FuzzerDataType::Timestamp => "timestamp",
             FuzzerDataType::IntervalMonthDayNano => "interval_month_day_nano",
             FuzzerDataType::String => "string",
+            FuzzerDataType::Int32Array => "int32_array",
         }
     }
 
@@ -154,7 +161,8 @@ impl FuzzerDataType {
             | FuzzerDataType::Time64Nanosecond
             | FuzzerDataType::Timestamp
             | FuzzerDataType::IntervalMonthDayNano
-            | FuzzerDataType::String => false,
+            | FuzzerDataType::String
+            | FuzzerDataType::Int32Array => false,
         }
     }
 
@@ -173,7 +181,8 @@ impl FuzzerDataType {
             | FuzzerDataType::Float64
             | FuzzerDataType::Boolean
             | FuzzerDataType::Decimal
-            | FuzzerDataType::String => false,
+            | FuzzerDataType::String
+            | FuzzerDataType::Int32Array => false,
         }
     }
 
@@ -206,6 +215,7 @@ impl FuzzerDataType {
             FuzzerDataType::Timestamp => "TIMESTAMP",
             FuzzerDataType::IntervalMonthDayNano => "INTERVAL",
             FuzzerDataType::String => "VARCHAR",
+            FuzzerDataType::Int32Array => "INT[]",
         }
     }
 }
@@ -240,6 +250,7 @@ pub fn init_available_data_types() {
             FuzzerDataType::Timestamp,
             FuzzerDataType::IntervalMonthDayNano,
             FuzzerDataType::String,
+            FuzzerDataType::Int32Array,
         ]
     });
 }
@@ -398,6 +409,59 @@ mod tests {
         assert_eq!(int8_type.to_sql_type(), "TINYINT");
         assert!(int8_type.is_numeric());
         assert!(!int8_type.is_time());
+    }
+
+    #[test]
+    fn test_int32_array_type_properties() {
+        let array_type = FuzzerDataType::Int32Array;
+
+        assert_eq!(
+            array_type.to_datafusion_type(),
+            DataType::new_list(DataType::Int32, true)
+        );
+        assert_eq!(
+            FuzzerDataType::from_datafusion_type(&DataType::new_list(DataType::Int32, true)),
+            Some(FuzzerDataType::Int32Array)
+        );
+        assert_eq!(array_type.display_name(), "int32_array");
+        assert_eq!(array_type.to_sql_type(), "INT[]");
+        assert!(!array_type.is_numeric());
+        assert!(!array_type.is_time());
+    }
+
+    /// End-to-end example: the exact SQL shapes the fuzzer generates for
+    /// Int32Array must be accepted by DataFusion (DDL, INSERT and SELECT).
+    #[tokio::test]
+    async fn test_int32_array_end_to_end() {
+        use datafusion::prelude::SessionContext;
+
+        let ctx = SessionContext::new();
+        ctx.sql("CREATE TABLE arr_example (id INT, vals INT[])")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+        ctx.sql("INSERT INTO arr_example VALUES (1, [1, 2, 3]), (2, [-5]), (3, NULL)")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        let batches = ctx
+            .sql("SELECT vals FROM arr_example")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+        let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total_rows, 3);
+        assert_eq!(
+            batches[0].schema().field(0).data_type(),
+            &DataType::new_list(DataType::Int32, true)
+        );
     }
 
     #[test]

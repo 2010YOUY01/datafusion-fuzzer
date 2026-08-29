@@ -24,6 +24,7 @@ pub enum GeneratedValue {
     Timestamp(i64, Option<String>), // Nanoseconds since Unix epoch (1970-01-01 00:00:00 UTC) with optional timezone
     IntervalMonthDayNano(i128),     // MonthDayNano interval as i128 (months, days, nanoseconds)
     String(String),                 // String value
+    Int32Array(Vec<i32>),           // List of Int32 values
     Null,
 }
 
@@ -111,6 +112,15 @@ pub fn generate_value(
                 precision,
                 scale,
             }
+        }
+        FuzzerDataType::Int32Array => {
+            // Short non-empty arrays: empty literals like `[]` have an untyped
+            // element type and fail to cast, so always generate 1..=5 elements
+            let length = rng.random_range(1..=5);
+            let values = (0..length)
+                .map(|_| rng.random_range(config.int_range.0..=config.int_range.1))
+                .collect();
+            GeneratedValue::Int32Array(values)
         }
         FuzzerDataType::Date32 => {
             // Generate a reasonable range of dates:
@@ -339,6 +349,10 @@ impl GeneratedValue {
                 let escaped = s.replace("'", "''");
                 format!("'{}'", escaped)
             }
+            GeneratedValue::Int32Array(values) => {
+                let elements: Vec<String> = values.iter().map(|v| v.to_string()).collect();
+                format!("[{}]", elements.join(", "))
+            }
             GeneratedValue::Null => "NULL".to_string(),
         }
     }
@@ -386,6 +400,14 @@ impl GeneratedValue {
                 ScalarValue::IntervalMonthDayNano(Some(interval_value))
             }
             GeneratedValue::String(s) => ScalarValue::Utf8(Some(s.clone())),
+            GeneratedValue::Int32Array(values) => {
+                use datafusion::arrow::array::ListArray;
+                use datafusion::arrow::datatypes::Int32Type;
+                let list = ListArray::from_iter_primitive::<Int32Type, _, _>(std::iter::once(
+                    Some(values.iter().map(|v| Some(*v)).collect::<Vec<_>>()),
+                ));
+                ScalarValue::List(Arc::new(list))
+            }
             GeneratedValue::Null => ScalarValue::Null,
         }
     }
@@ -539,6 +561,43 @@ mod tests {
                     );
                 }
                 other => panic!("Expected Int8 value, got: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_int32_array_value_generation_and_conversions() {
+        let mut rng = rng_from_seed(42);
+        let config = ValueGenerationConfig {
+            nullable: false,
+            ..ValueGenerationConfig::default()
+        };
+
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &FuzzerDataType::Int32Array, &config);
+
+            match &value {
+                GeneratedValue::Int32Array(values) => {
+                    assert!((1..=5).contains(&values.len()));
+                    for v in values {
+                        assert!((config.int_range.0..=config.int_range.1).contains(v));
+                    }
+
+                    // SQL literal like `[1, 2, 3]`
+                    let sql = value.to_sql_string();
+                    assert!(sql.starts_with('[') && sql.ends_with(']'));
+
+                    // ScalarValue::List with Int32 element type
+                    match value.to_scalar_value() {
+                        datafusion::scalar::ScalarValue::List(list) => {
+                            use datafusion::arrow::array::Array;
+                            assert_eq!(list.len(), 1);
+                            assert_eq!(list.value(0).len(), values.len());
+                        }
+                        other => panic!("Expected List scalar, got: {other:?}"),
+                    }
+                }
+                other => panic!("Expected Int32Array value, got: {other:?}"),
             }
         }
     }

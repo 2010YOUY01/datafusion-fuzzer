@@ -20,18 +20,18 @@ fn full_run_logs_expected_queries_and_stats_for_no_crash_oracle() -> Result<(), 
     let config_path = generate_default_config_with_oracles(&log_dir, &[ConfiguredOracle::NoCrash])?;
     let run_output = run_fuzzer_once(&config_path)?;
 
-    insta::assert_snapshot!(run_output.query_log, @r#"
+    insta::assert_snapshot!(run_output.query_log, @"
     === round=1 query=1 oracle=NoCrashOracle query_seed=310304 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT (44494.0000 + ((-820.030000000 + -0.000000000000045267000000000000000000000000000000) % 9.915)), CAST('1992-07-08 01:43:25.303353650' AS TIMESTAMP), (t0.col_t0_2_float32 - t0.col_t0_2_float32)
+    SELECT (31905.000000000000 + 42185.000000000000000000000), NULL, ((26.72593219656791 * (-31.000798999170783 + -47.79515993907295)) % 8.375943795966606)
     FROM t0, t2, t1
-    WHERE (t2.col_t2_1_string !~~* to_char(INTERVAL '3 MONS 19 DAYS 0.090673822 SECS', ':'))
+    WHERE true
 
     === round=1 query=2 oracle=NoCrashOracle query_seed=310305 ===
     --- statement=1 context=Random Query No-Crash Test ---
     SELECT ((current_time() + current_time()) < -55), (65.706448177695 * ((NULL + -0.06514454367550115) + -85.93427693961893))
     FROM t0, t2, t1
-    WHERE t0.col_t0_1_boolean
+    WHERE true
 
     === round=1 query=3 oracle=NoCrashOracle query_seed=310306 ===
     --- statement=1 context=Random Query No-Crash Test ---
@@ -41,28 +41,28 @@ fn full_run_logs_expected_queries_and_stats_for_no_crash_oracle() -> Result<(), 
 
     === round=1 query=4 oracle=NoCrashOracle query_seed=310307 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT (3 + ((50 % 85) / NULL)), -28
+    SELECT (NULL + ((t0.col_t0_2_float32 % t0.col_t0_2_float32) / t0.col_t0_2_float32)), -74
     FROM t0
-    WHERE true
+    WHERE (t0.col_t0_1_decimal128 = CAST('1976-12-24T08:10:02.711975514+09:00' AS TIMESTAMP))
 
     === round=1 query=5 oracle=NoCrashOracle query_seed=310308 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT (to_char((CAST('05:08:41.131473326' AS TIME) + NULL), '7{"kwxZt~K:1-?59') ~~* ';g o|<e1t5PeUZgc1*<DsT[MNI;W=ly5GZ9::]%%=y'), (((72 + NULL) % (110 % 131)) / 68), (t0.col_t0_2_float32 / (-53.663517 / t0.col_t0_2_float32))
+    SELECT (to_char((CAST('14:29:14.387490541' AS TIME) + t0.col_t0_3_time64_nanosecond), to_char(CAST('2058-07-27' AS DATE), '?598KgX')) ~~* to_char(to_timestamp_seconds(114, '<DsT[M'), 'ly5GZ9::]%%=yiyl')), (((53 * 98) % (NULL * 146)) % ((197 % 142) - (NULL - 10))), (((t0.col_t0_2_float32 * -19.148636) * 41.37184) + (-39.500214 % (t0.col_t0_2_float32 + t0.col_t0_2_float32)))
     FROM t2, t0, t1
-    WHERE (((183 * 125) + 11) <= (-73 / 33))
+    WHERE ('whL%,`<0ZYXc`2rsL:' ~ to_char(to_timestamp_nanos(NULL, '#uysW_0yWRYRU3*I39fJ'), '}PkUg)r9zdTg7-e!Xrpgy^5+'))
 
     === round=2 query=1 oracle=NoCrashOracle query_seed=311304 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT (-32603.0000 * ((-53924.000000000 % -44910.00000000000000000) * (-49344.0 / 3122.00))), 14, (((3 + NULL) % (14 - 33)) / ((-75 % -67) / 62))
+    SELECT current_date(), 27, (((63 * -4) * (2 + 33)) - ((76 + 61) * -91))
     FROM t1, t0
-    WHERE t0.col_t0_3_boolean
+    WHERE ((to_char(CAST('2000-06-23T18:11:00.994418145+09:00' AS TIMESTAMP), t0.col_t0_4_string) ~~ to_char(CAST('2018-01-08' AS DATE), '^tvmf:B,s')) AND ('zAj?tsovnki' ~~ to_char(CAST('2051-03-08 22:26:00.614618371' AS TIMESTAMP), 'bR>g0Rc_-|bD`5[3>eiypC!B=V}- oa>y1j.5BVhcu(w+Cw')))
 
     === round=2 query=2 oracle=NoCrashOracle query_seed=311305 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT CAST('16:41:33.438661926' AS TIME), 22
+    SELECT CAST('2039-07-04T16:41:51.160310268+00:00' AS TIMESTAMP), 80
     FROM t2, t0
-    RIGHT SEMI JOIN t1 ON ('/*L/' !~ to_char((t0.col_t0_4_interval_month_day_nano - INTERVAL '4 MONS 29 DAYS -0.138771504 SECS'), '3v3F=3`'))
-    WHERE (('7{)D{S6`SCY[i!W.XpqyUANHM J(=="$M@XZkO' !~* to_char(CAST('04:29:57.900434087' AS TIME), '8@mjXdBVXO?:FkQh_T.(W>')) OR ((INTERVAL '12 MONS -15 DAYS 0.663433974 SECS' - NULL) < t2.col_t2_1_uint64))
+    RIGHT SEMI JOIN t1 ON ('L/fQTV' !~ to_char((t0.col_t0_2_time64_nanosecond + CAST('00:47:51.915143361' AS TIME)), to_char(t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string)))
+    WHERE true
 
     === round=2 query=3 oracle=NoCrashOracle query_seed=311306 ===
     --- statement=1 context=Random Query No-Crash Test ---
@@ -72,16 +72,16 @@ fn full_run_logs_expected_queries_and_stats_for_no_crash_oracle() -> Result<(), 
 
     === round=2 query=4 oracle=NoCrashOracle query_seed=311307 ===
     --- statement=1 context=Random Query No-Crash Test ---
-    SELECT to_char(t0.col_t0_5_timestamp, '64kk&7.OusV5v6J"/nN,9z"c >$+qIc}I'), (68 * (-97 % -98)), 0.00047215000000000000000000000000000000
+    SELECT [-86, -86, 24, -7], 76, NULL
     FROM t0, t1
-    WHERE ((-38.495723534338346 - -44.704843664255954) >= t1.col_t1_2_float64)
+    WHERE false
 
     === round=2 query=5 oracle=NoCrashOracle query_seed=311308 ===
     --- statement=1 context=Random Query No-Crash Test ---
     SELECT (-24 / (94 - NULL))
     FROM t2
     WHERE true
-    "#);
+    ");
 
     insta::assert_snapshot!(run_output.stats_summary, @r"
     ============================================================
@@ -114,15 +114,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t0
-    WHERE (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91))))
+    WHERE ((true AND false))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE NOT (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91))))
+    WHERE NOT ((true AND false))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE (((NULL > NULL) OR (CAST('13:24:10.016648859' AS TIME) > (-44 + -91)))) IS NULL
+    WHERE ((true AND false)) IS NULL
 
     === round=1 query=2 oracle=TlpWhereOracle query_seed=310305 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -168,15 +168,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t0
-    WHERE ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32))
+    WHERE ((to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME)))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE NOT ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32))
+    WHERE NOT ((to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME)))
     UNION ALL
     SELECT *
     FROM t0
-    WHERE ((((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32)) IS NULL
+    WHERE ((to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME))) IS NULL
 
     === round=1 query=5 oracle=TlpWhereOracle query_seed=310308 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -222,15 +222,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t0
-    WHERE (t0.col_t0_3_boolean)
+    WHERE (true)
     UNION ALL
     SELECT *
     FROM t0
-    WHERE NOT (t0.col_t0_3_boolean)
+    WHERE NOT (true)
     UNION ALL
     SELECT *
     FROM t0
-    WHERE (t0.col_t0_3_boolean) IS NULL
+    WHERE (true) IS NULL
 
     === round=2 query=3 oracle=TlpWhereOracle query_seed=311306 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -240,15 +240,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t2
-    WHERE ((37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx'))
+    WHERE ((((113 + 108) - (61 * 130)) IS DISTINCT FROM true))
     UNION ALL
     SELECT *
     FROM t2
-    WHERE NOT ((37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx'))
+    WHERE NOT ((((113 + 108) - (61 * 130)) IS DISTINCT FROM true))
     UNION ALL
     SELECT *
     FROM t2
-    WHERE ((37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx')) IS NULL
+    WHERE ((((113 + 108) - (61 * 130)) IS DISTINCT FROM true)) IS NULL
 
     === round=2 query=4 oracle=TlpWhereOracle query_seed=311307 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -258,15 +258,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t1
-    WHERE (NULL)
+    WHERE ((-3 >= (51 / 141)))
     UNION ALL
     SELECT *
     FROM t1
-    WHERE NOT (NULL)
+    WHERE NOT ((-3 >= (51 / 141)))
     UNION ALL
     SELECT *
     FROM t1
-    WHERE (NULL) IS NULL
+    WHERE ((-3 >= (51 / 141))) IS NULL
 
     === round=2 query=5 oracle=TlpWhereOracle query_seed=311308 ===
     --- statement=1 context=TLP-WHERE all ---
@@ -276,15 +276,15 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     --- statement=2 context=TLP-WHERE p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT *
     FROM t2
-    WHERE (true)
+    WHERE (false)
     UNION ALL
     SELECT *
     FROM t2
-    WHERE NOT (true)
+    WHERE NOT (false)
     UNION ALL
     SELECT *
     FROM t2
-    WHERE (true) IS NULL
+    WHERE (false) IS NULL
     ");
     insta::assert_snapshot!(run_output.stats_summary, @"
     ============================================================
@@ -293,7 +293,7 @@ fn full_run_logs_expected_queries_for_tlp_where_oracle() -> Result<(), Box<dyn E
     📊 Execution Summary:
       • Rounds Completed: 2
       • Queries Executed: 20
-      • Query Success Rate: 85.00%
+      • Query Success Rate: 90.00%
     ");
 
     fs::remove_dir_all(&log_dir)?;
@@ -311,201 +311,201 @@ fn full_run_logs_expected_queries_for_tlp_having_oracle() -> Result<(), Box<dyn 
     insta::assert_snapshot!(run_output.query_log, @"
     === round=1 query=1 oracle=TlpHavingOracle query_seed=310304 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t0.col_t0_2_float32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128
     FROM t0
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_boolean
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t0.col_t0_2_float32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128
     FROM t0
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_boolean
-    HAVING (t0.col_t0_1_boolean)
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128
+    HAVING (false)
     UNION ALL
-    SELECT t0.col_t0_2_float32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128
     FROM t0
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_boolean
-    HAVING NOT (t0.col_t0_1_boolean)
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128
+    HAVING NOT (false)
     UNION ALL
-    SELECT t0.col_t0_2_float32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_1_decimal128
     FROM t0
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_boolean
-    HAVING (t0.col_t0_1_boolean) IS NULL
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_1_decimal128
+    HAVING (false) IS NULL
 
     === round=1 query=2 oracle=TlpHavingOracle query_seed=310305 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     FROM t1
-    GROUP BY t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     FROM t1
-    GROUP BY t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     HAVING (true)
     UNION ALL
-    SELECT t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     FROM t1
-    GROUP BY t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     HAVING NOT (true)
     UNION ALL
-    SELECT t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    SELECT t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     FROM t1
-    GROUP BY t1.col_t1_1_int32, t1.col_t1_3_date32, t1.col_t1_2_int32
+    GROUP BY t1.col_t1_1_int64, t1.col_t1_3_date32, t1.col_t1_2_int32
     HAVING (true) IS NULL
 
     === round=1 query=3 oracle=TlpHavingOracle query_seed=310306 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t2.col_t2_1_string
+    SELECT t2.col_t2_1_int32_array
     FROM t2
     WHERE NULL
-    GROUP BY t2.col_t2_1_string
+    GROUP BY t2.col_t2_1_int32_array
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t2.col_t2_1_string
+    SELECT t2.col_t2_1_int32_array
     FROM t2
     WHERE NULL
-    GROUP BY t2.col_t2_1_string
+    GROUP BY t2.col_t2_1_int32_array
     HAVING (true)
     UNION ALL
-    SELECT t2.col_t2_1_string
+    SELECT t2.col_t2_1_int32_array
     FROM t2
     WHERE NULL
-    GROUP BY t2.col_t2_1_string
+    GROUP BY t2.col_t2_1_int32_array
     HAVING NOT (true)
     UNION ALL
-    SELECT t2.col_t2_1_string
+    SELECT t2.col_t2_1_int32_array
     FROM t2
     WHERE NULL
-    GROUP BY t2.col_t2_1_string
+    GROUP BY t2.col_t2_1_int32_array
     HAVING (true) IS NULL
 
     === round=1 query=4 oracle=TlpHavingOracle query_seed=310307 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t0.col_t0_3_date32
+    SELECT t0.col_t0_3_time64_nanosecond
     FROM t0
-    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32)
-    GROUP BY t0.col_t0_3_date32
+    WHERE (to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME))
+    GROUP BY t0.col_t0_3_time64_nanosecond
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t0.col_t0_3_date32
+    SELECT t0.col_t0_3_time64_nanosecond
     FROM t0
-    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32)
-    GROUP BY t0.col_t0_3_date32
+    WHERE (to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME))
+    GROUP BY t0.col_t0_3_time64_nanosecond
     HAVING (false)
     UNION ALL
-    SELECT t0.col_t0_3_date32
+    SELECT t0.col_t0_3_time64_nanosecond
     FROM t0
-    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32)
-    GROUP BY t0.col_t0_3_date32
+    WHERE (to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME))
+    GROUP BY t0.col_t0_3_time64_nanosecond
     HAVING NOT (false)
     UNION ALL
-    SELECT t0.col_t0_3_date32
+    SELECT t0.col_t0_3_time64_nanosecond
     FROM t0
-    WHERE (((INTERVAL '5 MONS -27 DAYS -0.441374862 SECS' - INTERVAL '-12 MONS -27 DAYS -0.000000001 SECS') - (INTERVAL '3 MONS -11 DAYS 0.197671616 SECS' - INTERVAL '6 MONS 30 DAYS 0.369027803 SECS')) IS NOT DISTINCT FROM t0.col_t0_3_date32)
-    GROUP BY t0.col_t0_3_date32
+    WHERE (to_char(current_time(), ':#y`') IS NOT DISTINCT FROM CAST('08:31:35.907569859' AS TIME))
+    GROUP BY t0.col_t0_3_time64_nanosecond
     HAVING (false) IS NULL
 
     === round=1 query=5 oracle=TlpHavingOracle query_seed=310308 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     HAVING ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv['))
     UNION ALL
-    SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     HAVING NOT ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv['))
     UNION ALL
-    SELECT t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    SELECT t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_date32, t0.col_t0_1_boolean
+    GROUP BY t0.col_t0_2_float32, t0.col_t0_3_time64_nanosecond, t0.col_t0_1_decimal128
     HAVING ((to_char(INTERVAL '-7 MONS 29 DAYS -0.000000001 SECS', '%X `B') !~* '0SsYa@-p]yc`qTL8PvF #c;Tei9))DXs:^wgv[')) IS NULL
 
     === round=2 query=1 oracle=TlpHavingOracle query_seed=311304 ===
     --- statement=1 context=TLP-HAVING all groups ---
-    SELECT t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    SELECT t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    GROUP BY t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
-    SELECT t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    SELECT t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    GROUP BY t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     HAVING (false)
     UNION ALL
-    SELECT t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    SELECT t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    GROUP BY t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     HAVING NOT (false)
     UNION ALL
-    SELECT t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    SELECT t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     FROM t0
     WHERE false
-    GROUP BY t0.col_t0_2_date32, t0.col_t0_5_timestamp, t0.col_t0_4_interval_month_day_nano
+    GROUP BY t0.col_t0_2_time64_nanosecond, t0.col_t0_5_interval_month_day_nano, t0.col_t0_4_string
     HAVING (false) IS NULL
 
     === round=2 query=2 oracle=TlpHavingOracle query_seed=311305 ===
     --- statement=1 context=TLP-HAVING all groups ---
     SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
     FROM t0
-    WHERE t0.col_t0_3_boolean
+    WHERE true
     GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
     FROM t0
-    WHERE t0.col_t0_3_boolean
+    WHERE true
     GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
-    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM (29474.000000000000000000000000000000 / 50715.00000000)))
+    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW'))))
     UNION ALL
     SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
     FROM t0
-    WHERE t0.col_t0_3_boolean
+    WHERE true
     GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
-    HAVING NOT (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM (29474.000000000000000000000000000000 / 50715.00000000)))
+    HAVING NOT (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW'))))
     UNION ALL
     SELECT t0.col_t0_3_boolean, t0.col_t0_1_float64
     FROM t0
-    WHERE t0.col_t0_3_boolean
+    WHERE true
     GROUP BY t0.col_t0_3_boolean, t0.col_t0_1_float64
-    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM (29474.000000000000000000000000000000 / 50715.00000000))) IS NULL
+    HAVING (((CAST('2029-04-02' AS DATE) - CAST('2007-02-12' AS DATE)) IS DISTINCT FROM to_date(-2, to_char(CAST('2056-05-25' AS DATE), 'nqYWyq7XW')))) IS NULL
 
     === round=2 query=3 oracle=TlpHavingOracle query_seed=311306 ===
     --- statement=1 context=TLP-HAVING all groups ---
     SELECT t2.col_t2_1_uint64
     FROM t2
-    WHERE (37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx')
+    WHERE (((113 + 108) - (61 * 130)) IS DISTINCT FROM true)
     GROUP BY t2.col_t2_1_uint64
 
     --- statement=2 context=TLP-HAVING p UNION ALL NOT p UNION ALL p IS NULL ---
     SELECT t2.col_t2_1_uint64
     FROM t2
-    WHERE (37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx')
+    WHERE (((113 + 108) - (61 * 130)) IS DISTINCT FROM true)
     GROUP BY t2.col_t2_1_uint64
     HAVING (false)
     UNION ALL
     SELECT t2.col_t2_1_uint64
     FROM t2
-    WHERE (37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx')
+    WHERE (((113 + 108) - (61 * 130)) IS DISTINCT FROM true)
     GROUP BY t2.col_t2_1_uint64
     HAVING NOT (false)
     UNION ALL
     SELECT t2.col_t2_1_uint64
     FROM t2
-    WHERE (37 <> 'SmzNXU9X`=@7-e^]*{z;16Ek#_(i%O1Onu84hJ@NzCd ltx')
+    WHERE (((113 + 108) - (61 * 130)) IS DISTINCT FROM true)
     GROUP BY t2.col_t2_1_uint64
     HAVING (false) IS NULL
 
