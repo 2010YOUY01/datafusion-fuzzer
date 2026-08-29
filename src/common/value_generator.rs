@@ -7,6 +7,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub enum GeneratedValue {
     Int8(i8),
+    Int16(i16),
     Int32(i32),
     Int64(i64),
     UInt32(u32),
@@ -64,6 +65,10 @@ pub fn generate_value(
         FuzzerDataType::Int8 => {
             let value = rng.random_range(config.int_range.0 as i8..=config.int_range.1 as i8);
             GeneratedValue::Int8(value)
+        }
+        FuzzerDataType::Int16 => {
+            let value = rng.random_range(config.int_range.0 as i16..=config.int_range.1 as i16);
+            GeneratedValue::Int16(value)
         }
 
         FuzzerDataType::Int32 => {
@@ -197,6 +202,7 @@ impl GeneratedValue {
     pub fn to_sql_string(&self) -> String {
         match self {
             GeneratedValue::Int8(v) => v.to_string(),
+            GeneratedValue::Int16(v) => v.to_string(),
             GeneratedValue::Int32(v) => v.to_string(),
             GeneratedValue::Int64(v) => v.to_string(),
             GeneratedValue::UInt32(v) => v.to_string(),
@@ -349,6 +355,7 @@ impl GeneratedValue {
 
         match self {
             GeneratedValue::Int8(v) => ScalarValue::Int8(Some(*v)),
+            GeneratedValue::Int16(v) => ScalarValue::Int16(Some(*v)),
             GeneratedValue::Int32(v) => ScalarValue::Int32(Some(*v)),
             GeneratedValue::Int64(v) => ScalarValue::Int64(Some(*v)),
             GeneratedValue::UInt32(v) => ScalarValue::UInt32(Some(*v)),
@@ -539,6 +546,32 @@ mod tests {
                     );
                 }
                 other => panic!("Expected Int8 value, got: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_int16_value_generation_and_conversions() {
+        let mut rng = rng_from_seed(42);
+        let config = ValueGenerationConfig {
+            nullable: false,
+            int_range: (-32768, 32767),
+            ..ValueGenerationConfig::default()
+        };
+
+        for _ in 0..100 {
+            let value = generate_value(&mut rng, &FuzzerDataType::Int16, &config);
+
+            match &value {
+                GeneratedValue::Int16(v) => {
+                    assert!((-32768..=32767).contains(v));
+                    assert_eq!(value.to_sql_string(), v.to_string());
+                    assert_eq!(
+                        value.to_scalar_value(),
+                        datafusion::scalar::ScalarValue::Int16(Some(*v))
+                    );
+                }
+                other => panic!("Expected Int16 value, got: {other:?}"),
             }
         }
     }
