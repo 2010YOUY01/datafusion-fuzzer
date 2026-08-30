@@ -7,8 +7,11 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub enum GeneratedValue {
     Int8(i8),
+    Int16(i16),
     Int32(i32),
     Int64(i64),
+    UInt8(u8),
+    UInt16(u16),
     UInt32(u32),
     UInt64(u64),
     Float32(f32),
@@ -63,10 +66,16 @@ pub fn generate_value(
 
     match fuzzer_type {
         FuzzerDataType::Int8 => {
-            let value = rng.random_range(config.int_range.0 as i8..=config.int_range.1 as i8);
+            let (start, end) = clamp_signed_range(config.int_range, i8::MIN as i32, i8::MAX as i32);
+            let value = rng.random_range(start..=end) as i8;
             GeneratedValue::Int8(value)
         }
-
+        FuzzerDataType::Int16 => {
+            let (start, end) =
+                clamp_signed_range(config.int_range, i16::MIN as i32, i16::MAX as i32);
+            let value = rng.random_range(start..=end) as i16;
+            GeneratedValue::Int16(value)
+        }
         FuzzerDataType::Int32 => {
             let value = rng.random_range(config.int_range.0..=config.int_range.1);
             GeneratedValue::Int32(value)
@@ -74,6 +83,22 @@ pub fn generate_value(
         FuzzerDataType::Int64 => {
             let value = rng.random_range(config.int_range.0 as i64..=config.int_range.1 as i64);
             GeneratedValue::Int64(value)
+        }
+        FuzzerDataType::UInt8 => {
+            let (start, end) = clamp_unsigned_range(config.uint_range, u8::MAX as u32);
+
+            let value =
+                u8::try_from(rng.random_range(start..=end)).expect("clamped value must fit in u8");
+
+            GeneratedValue::UInt8(value)
+        }
+        FuzzerDataType::UInt16 => {
+            let (start, end) = clamp_unsigned_range(config.uint_range, u16::MAX as u32);
+
+            let value = u16::try_from(rng.random_range(start..=end))
+                .expect("clamped value must fit in u16");
+
+            GeneratedValue::UInt16(value)
         }
         FuzzerDataType::UInt32 => {
             let value = rng.random_range(config.uint_range.0..=config.uint_range.1);
@@ -207,8 +232,11 @@ impl GeneratedValue {
     pub fn to_sql_string(&self) -> String {
         match self {
             GeneratedValue::Int8(v) => v.to_string(),
+            GeneratedValue::Int16(v) => v.to_string(),
             GeneratedValue::Int32(v) => v.to_string(),
             GeneratedValue::Int64(v) => v.to_string(),
+            GeneratedValue::UInt8(v) => v.to_string(),
+            GeneratedValue::UInt16(v) => v.to_string(),
             GeneratedValue::UInt32(v) => v.to_string(),
             GeneratedValue::UInt64(v) => v.to_string(),
             GeneratedValue::Float32(v) => v.to_string(),
@@ -363,8 +391,11 @@ impl GeneratedValue {
 
         match self {
             GeneratedValue::Int8(v) => ScalarValue::Int8(Some(*v)),
+            GeneratedValue::Int16(v) => ScalarValue::Int16(Some(*v)),
             GeneratedValue::Int32(v) => ScalarValue::Int32(Some(*v)),
             GeneratedValue::Int64(v) => ScalarValue::Int64(Some(*v)),
+            GeneratedValue::UInt8(v) => ScalarValue::UInt8(Some(*v)),
+            GeneratedValue::UInt16(v) => ScalarValue::UInt16(Some(*v)),
             GeneratedValue::UInt32(v) => ScalarValue::UInt32(Some(*v)),
             GeneratedValue::UInt64(v) => ScalarValue::UInt64(Some(*v)),
             GeneratedValue::Float32(v) => ScalarValue::Float32(Some(*v)),
@@ -417,6 +448,34 @@ impl GeneratedValue {
 // Utility functions
 // =================
 
+/// Clamps a configured signed integer range to the target type's valid range.
+///
+/// If the configured range does not overlap with the target range, both
+/// bounds are clamped to the nearest target boundary.
+fn clamp_signed_range(configured: (i32, i32), type_min: i32, type_max: i32) -> (i32, i32) {
+    assert!(
+        configured.0 <= configured.1,
+        "configured integer range start must not exceed its end"
+    );
+
+    (
+        configured.0.clamp(type_min, type_max),
+        configured.1.clamp(type_min, type_max),
+    )
+}
+/// Clamps a configured unsigned integer range to the target type's maximum.
+///
+/// The lower bound does not need explicit zero clamping because the configured
+/// range uses `u32`. If the whole range exceeds `type_max`, both bounds become
+/// `type_max`.
+fn clamp_unsigned_range(configured: (u32, u32), type_max: u32) -> (u32, u32) {
+    assert!(
+        configured.0 <= configured.1,
+        "configured unsigned integer range start must not exceed its end"
+    );
+
+    (configured.0.min(type_max), configured.1.min(type_max))
+}
 /// Safely calculate 10^scale, preventing overflow
 pub fn safe_power_of_10(scale: i8) -> i128 {
     // The maximum power of 10 that fits in i128 is approximately 10^38
@@ -540,27 +599,58 @@ mod tests {
     use crate::common::rng::rng_from_seed;
 
     #[test]
-    fn test_int8_value_generation_and_conversions() {
+    fn test_integer_value_generation_and_conversions() {
+        use datafusion::scalar::ScalarValue;
+
         let mut rng = rng_from_seed(42);
         let config = ValueGenerationConfig {
             nullable: false,
-            int_range: (-128, 127),
             ..ValueGenerationConfig::default()
         };
 
         for _ in 0..100 {
-            let value = generate_value(&mut rng, &FuzzerDataType::Int8, &config);
-
-            match &value {
+            // Int8
+            let int8 = generate_value(&mut rng, &FuzzerDataType::Int8, &config);
+            match int8 {
                 GeneratedValue::Int8(v) => {
-                    assert!((-128..=127).contains(v));
-                    assert_eq!(value.to_sql_string(), v.to_string());
-                    assert_eq!(
-                        value.to_scalar_value(),
-                        datafusion::scalar::ScalarValue::Int8(Some(*v))
-                    );
+                    assert!((-100..=100).contains(&v));
+                    assert_eq!(int8.to_sql_string(), v.to_string());
+                    assert_eq!(int8.to_scalar_value(), ScalarValue::Int8(Some(v)));
                 }
                 other => panic!("Expected Int8 value, got: {other:?}"),
+            }
+
+            // Int16
+            let int16 = generate_value(&mut rng, &FuzzerDataType::Int16, &config);
+            match int16 {
+                GeneratedValue::Int16(v) => {
+                    assert!((-100..=100).contains(&v));
+                    assert_eq!(int16.to_sql_string(), v.to_string());
+                    assert_eq!(int16.to_scalar_value(), ScalarValue::Int16(Some(v)));
+                }
+                other => panic!("Expected Int16 value, got: {other:?}"),
+            }
+
+            // UInt8
+            let uint8 = generate_value(&mut rng, &FuzzerDataType::UInt8, &config);
+            match uint8 {
+                GeneratedValue::UInt8(v) => {
+                    assert!((0..=200).contains(&v));
+                    assert_eq!(uint8.to_sql_string(), v.to_string());
+                    assert_eq!(uint8.to_scalar_value(), ScalarValue::UInt8(Some(v)));
+                }
+                other => panic!("Expected UInt8 value, got: {other:?}"),
+            }
+
+            // UInt16
+            let uint16 = generate_value(&mut rng, &FuzzerDataType::UInt16, &config);
+            match uint16 {
+                GeneratedValue::UInt16(v) => {
+                    assert!((0..=200).contains(&v));
+                    assert_eq!(uint16.to_sql_string(), v.to_string());
+                    assert_eq!(uint16.to_scalar_value(), ScalarValue::UInt16(Some(v)));
+                }
+                other => panic!("Expected UInt16 value, got: {other:?}"),
             }
         }
     }
@@ -600,6 +690,38 @@ mod tests {
                 other => panic!("Expected Int32Array value, got: {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn test_integer_ranges_outside_target_type_clamp_to_nearest_boundary() {
+        assert_eq!(
+            clamp_signed_range((200, 300), i8::MIN as i32, i8::MAX as i32),
+            (i8::MAX as i32, i8::MAX as i32)
+        );
+        assert_eq!(
+            clamp_signed_range((-300, -200), i8::MIN as i32, i8::MAX as i32),
+            (i8::MIN as i32, i8::MIN as i32)
+        );
+        assert_eq!(
+            clamp_unsigned_range((300, 400), u8::MAX as u32),
+            (u8::MAX as u32, u8::MAX as u32)
+        );
+        assert_eq!(
+            clamp_unsigned_range((70_000, 80_000), u16::MAX as u32),
+            (u16::MAX as u32, u16::MAX as u32)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "configured integer range start must not exceed its end")]
+    fn test_clamp_signed_range_rejects_reversed_range() {
+        clamp_signed_range((1, -1), i8::MIN as i32, i8::MAX as i32);
+    }
+
+    #[test]
+    #[should_panic(expected = "configured unsigned integer range start must not exceed its end")]
+    fn test_clamp_unsigned_range_rejects_reversed_range() {
+        clamp_unsigned_range((1, 0), u8::MAX as u32);
     }
 
     #[test]
